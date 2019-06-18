@@ -76,15 +76,17 @@ class files(object):
             counter = 0
 
             for gender in np.unique(genders):
+                users_dict[gender] = {}
 
                 for year in years:
+                    users_dict[gender][year] = {}
 
                     for place in np.unique(places):
+                        users_dict[gender][year][place] = {}
 
                         for age_group in age_groups:
-                            a.append({gender: {year: {place: {age_group: users1[counter]}}}})
+                            users_dict[gender][year][place][age_group] = users1[counter]
                             counter += 1
-            print(a[0]['Kvinne'])
 
 
 data1 = files('part_1')
