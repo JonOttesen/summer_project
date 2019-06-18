@@ -15,6 +15,9 @@ class files(object):
         return None
 
     def year_indexes(self):
+        """
+        Finds the indexes for all rows which contains a year written in i.e non empty
+        """
         indexes = []
         for i in range(len(self.df.iloc[:])):
             #print(df.iloc[i,1])
@@ -61,40 +64,84 @@ class files(object):
 
 
     def files_dict(self, file_name):
+        """
+        Places all parameters in a single dictonary.
+        Order in the dictionary: Gender -> Age -> Place (fylke/region/hele landet) -> Aldersgruppe.
+        """
+        os.chdir(self.directory)
+        self.df = pd.read_excel(io=file_name, sheet_name = 0)
+        os.chdir(path)
 
-            os.chdir(self.directory)
-            self.df = pd.read_excel(io=file_name, sheet_name = 0)
-            os.chdir(path)
+        indexes = self.year_indexes()
+        users_dict = {}
+        a = []
 
-            indexes = self.year_indexes()
-            users_dict = {}
-            a = []
+        d_indexes = int(indexes[1]-indexes[0])
+        years, users, age_groups, places, genders = self.opening(file_name)
+        users1 = np.concatenate(users)
+        counter = 0
 
-            d_indexes = int(indexes[1]-indexes[0])
-            years, users, age_groups, places, genders = self.opening(file_name)
-            users1 = np.concatenate(users)
-            counter = 0
+        for gender in np.unique(genders):  #Looping through the different parameters
+            users_dict[gender] = {}
 
-            for gender in np.unique(genders):
-                users_dict[gender] = {}
+            for year in years:
+                users_dict[gender][year] = {}
 
-                for year in years:
-                    users_dict[gender][year] = {}
+                for place in np.unique(places):
+                    users_dict[gender][year][place] = {}
 
-                    for place in np.unique(places):
-                        users_dict[gender][year][place] = {}
-
-                        for age_group in age_groups:
-                            users_dict[gender][year][place][age_group] = users1[counter]
-                            counter += 1
+                    for age_group in age_groups:
+                        users_dict[gender][year][place][age_group] = users1[counter]
+                        counter += 1
+        return users_dict
 
 
-data1 = files('part_1')
-(data1.files_dict('antiepileptika.xls'))
+class visualization(object):
+
+    def __init__(self, folder_name):
+        self.folder_name = folder_name
+        os.chdir(self.folder_name)
+        self.filenames = os.listdir()
 
 
-"""
-plt.bar(years2, sum2/np.sum(sum2))
-plt.bar(years1, sum1/np.sum(sum1))
-plt.show()
-"""
+visualization('part_1')
+
+os.chdir(path)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#jao
