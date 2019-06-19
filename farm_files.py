@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
+import xlrd
+import time
+
 
 path = os.path.abspath(os.path.dirname(__file__))
 
@@ -30,10 +33,6 @@ class files(object):
         Returns all the values from the Antall brukere column and all the years
         Array for Antall brukere (x,y) size where x index represent a year and y index represent a age group.
         """
-        os.chdir(self.directory)
-        self.df = pd.read_excel(io=file_name, sheet_name = 0)
-        os.chdir(path)
-
         indexes = self.year_indexes()
 
         d_indexes = int(indexes[1]-indexes[0])
@@ -42,7 +41,6 @@ class files(object):
         age_groups = []
         places = []
         genders = []
-
         for g in range(indexes[0], indexes[0] + d_indexes):
             age_groups.append(self.df.iloc[g,2])
             places.append(self.df.iloc[g,4])
@@ -62,14 +60,27 @@ class files(object):
 
         return years, users, age_groups, places, genders
 
+    def ordering(self, array):
+        array1, order = np.unique(array, return_index=True)
+        counter = 0
+        new_array = np.zeros_like(array1)
+        for index in np.sort(order):
+            new_array[counter] = array[index]
+            counter += 1
+        return new_array[new_array != 'nan']
+
 
     def files_dict(self, file_name):
         """
         Places all parameters in a single dictonary.
-        Order in the dictionary: Gender -> Age -> Place (fylke/region/hele landet) -> Aldersgruppe.
+        Order in the dictionary: Gender -> Year -> Age group -> Place (fylke/region/hele landet).
         """
         os.chdir(self.directory)
-        self.df = pd.read_excel(io=file_name, sheet_name = 0)
+
+        wb = xlrd.open_workbook(file_name, logfile=open(os.devnull, 'w'))  #39.58 sek on test
+        self.df = pd.read_excel(wb, engine='xlrd')
+        #self.df = pd.read_excel(io = file_name, sheet = 0)  #38.97 on test
+
         os.chdir(path)
 
         indexes = self.year_indexes()
@@ -79,19 +90,24 @@ class files(object):
         d_indexes = int(indexes[1]-indexes[0])
         years, users, age_groups, places, genders = self.opening(file_name)
         users1 = np.concatenate(users)
-        counter = 0
 
-        for gender in np.unique(genders):  #Looping through the different parameters
+        age_groups = self.ordering(age_groups)
+        genders = self.ordering(genders)
+        places = self.ordering(places)
+        years = np.array(years)
+
+        counter = 0
+        for gender in genders:  #Looping through the different parameters
             users_dict[gender] = {}
 
             for year in years:
                 users_dict[gender][year] = {}
 
-                for place in np.unique(places):
-                    users_dict[gender][year][place] = {}
+                for age_group in age_groups:
+                    users_dict[gender][year][age_group] = {}
 
-                    for age_group in age_groups:
-                        users_dict[gender][year][place][age_group] = users1[counter]
+                    for place in places:
+                        users_dict[gender][year][age_group][place] = users1[counter]
                         counter += 1
         return users_dict
 
@@ -100,11 +116,40 @@ class visualization(object):
 
     def __init__(self, folder_name):
         self.folder_name = folder_name
+
         os.chdir(self.folder_name)
         self.filenames = os.listdir()
+        os.chdir(path)
+
+        self.data = []
+        self.drugs = []  #Name of the drugs
+        for i in self.filenames:
+            self.drugs.append(i[:-4])
+
+        for filename in self.filenames:
+            self.data.append(files(folder_name).files_dict(filename))
+
+        self.gender_keys = list(self.data[0].keys())
+        self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
+
+        #print(self.data[-1]['Kvinne'][2004]['0 - 4'])
+
+    def age_parameters(self, age_start, age_end):
+        keys = self.data[0]['Kvinne'][2005].keys()
 
 
-visualization('part_1')
+    def time_evolution(self):
+        return None
+
+    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2005):
+        return None
+
+
+
+#files('Antiepileptika').files_dict('Lamotrigin.xls')
+
+test = visualization('Antiepileptika')
+test.age_parameters(11, 67)
 
 os.chdir(path)
 
