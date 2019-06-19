@@ -131,25 +131,52 @@ class visualization(object):
 
         self.gender_keys = list(self.data[0].keys())
         self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
+        self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())
+        self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())
 
-        #print(self.data[-1]['Kvinne'][2004]['0 - 4'])
 
     def age_parameters(self, age_start, age_end):
-        keys = self.data[0]['Kvinne'][2005].keys()
+        age_indexes = []
+        for i in range(0, len(self.age_group_keys)):
+            if age_start < 5*(i+1) and age_end > 5*(i):
+                age_indexes.append(i)
+        #for i in age_indexes:
+        #    print(self.age_group_keys[i], age_start, age_end)
+        return age_indexes
 
-
-    def time_evolution(self):
+    def time_evolution(self, f, data, years):
         return None
 
-    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2005):
-        return None
+    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2019):
+
+        data = np.zeros((len(self.drugs), len(self.year_keys)))
+        age_indexes = self.age_parameters(age_start, age_end)
+        #print(self.age_group_keys[age_indexes[0]], self.age_group_keys[age_indexes[-1]])
+
+        for i in range(len(self.drugs)):
+            for k in range(len(self.year_keys)):
+                for j in range(len(age_indexes)):
+                    data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+
+
+        time = np.linspace(period_start, period_end, period_end-period_start+1)
+        for i in range(len(self.drugs)):
+            z = np.polyfit(self.year_keys, data[i], 4)
+            f = np.poly1d(z)
+            plt.plot(self.year_keys, data[i], 'ro')
+            plt.plot(time, f(time))
+        plt.show()
+
+
+
+
 
 
 
 #files('Antiepileptika').files_dict('Lamotrigin.xls')
 
 test = visualization('Antiepileptika')
-test.age_parameters(11, 67)
+test.part1()
 
 os.chdir(path)
 
