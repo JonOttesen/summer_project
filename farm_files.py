@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 import xlrd
 import time
-
+import warnings
+warnings.simplefilter('ignore', np.RankWarning)
 
 path = os.path.abspath(os.path.dirname(__file__))
 
@@ -144,10 +145,66 @@ class visualization(object):
         #    print(self.age_group_keys[i], age_start, age_end)
         return age_indexes
 
-    def time_evolution(self, f, data, years):
+    def curve_fitting(self, data):
+        degree = 1
+        years = []
+        new_data = []
+
+        years.append(self.year_keys[0]-40)
+        years.append(self.year_keys[0]-30)
+        for i in self.year_keys:
+            years.append(i)
+        years.append(self.year_keys[-1]+50)
+        years.append(self.year_keys[-1]+60)
+
+        new_data.append(0)
+        new_data.append(0)
+        for i in data:
+            new_data.append(i)
+        new_data.append(0)
+        new_data.append(0)
+        data = np.array(new_data)
+
+        z_lower = np.polyfit(years, data, 2)
+        f_best_fit = np.poly1d(z_lower)
+        for deg in [2,3,4,5,6,7,8]:
+            z_higher = np.polyfit(years, data, deg)
+            f_higher = np.poly1d(z_higher)
+            if np.sum((f_higher(years) - data)**2) <= np.sum((f_best_fit(years) - data)**2):
+                degree = deg
+                f_best_fit = f_higher
+        return f_best_fit
+
+    def final_function(self, data, f, time):
+        final = []
+        for year in time:
+            if year in self.year_keys:
+                final.append(data[self.year_keys.index(year)])
+            else:
+                final.append(f[time == year])
+        return np.array(final)
+
+    def part1_plotting(self, data, med_type_index, period_start, period_end, drug_list):
+
+        time = np.linspace(period_start, period_end, period_end-period_start+1)
+        bars = len(data)
+        offset = 0.8/bars
+
+        if type(data[0]) == type(np.array([1])):
+            for i in range(len(data)):
+                func = self.curve_fitting(np.log(data[i]))
+                plt.bar(time-0.4+i*offset, self.final_function(data[i], np.exp(func(time)), time), width = offset, label = drug_list[i])
+                plt.legend()
+            plt.show()
+        else:
+            func = self.curve_fitting(np.log(data))
+            plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = folder_name)
+            plt.legend()
+            plt.show()
+
         return None
 
-    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2019):
+    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
 
         data = np.zeros((len(self.drugs), len(self.year_keys)))
         age_indexes = self.age_parameters(age_start, age_end)
@@ -158,14 +215,15 @@ class visualization(object):
                 for j in range(len(age_indexes)):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
 
+        med_type_index = self.drugs.index(self.folder_name)
+        total_use = np.copy(data[med_type_index])
+        data_drugs = np.delete(data, med_type_index, 0)
+        ratio = data_drugs/total_use
+        ratio_list = self.drugs[:]
+        del ratio_list[med_type_index]
 
-        time = np.linspace(period_start, period_end, period_end-period_start+1)
-        for i in range(len(self.drugs)):
-            z = np.polyfit(self.year_keys, data[i], 4)
-            f = np.poly1d(z)
-            plt.plot(self.year_keys, data[i], 'ro')
-            plt.plot(time, f(time))
-        plt.show()
+        self.part1_plotting(data, med_type_index, period_start, period_end, self.drugs)
+        self.part1_plotting(ratio, med_type_index, period_start, period_end, ratio_list)
 
 
 
