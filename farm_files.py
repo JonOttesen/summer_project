@@ -6,6 +6,7 @@ from scipy import interpolate
 import xlrd
 import time
 import warnings
+from scipy.optimize import curve_fit
 warnings.simplefilter('ignore', np.RankWarning)
 
 path = os.path.abspath(os.path.dirname(__file__))
@@ -125,10 +126,10 @@ class visualization(object):
         self.data = []
         self.drugs = []  #Name of the drugs
         for i in self.filenames:
-            self.drugs.append(i[:-4])
+            self.drugs.append(i[:-4])  #Removing the .xls ending
 
         for filename in self.filenames:
-            self.data.append(files(folder_name).files_dict(filename))
+            self.data.append(files(folder_name).files_dict(filename))  #Dictionaries for all the xls files in the folder
 
         self.gender_keys = list(self.data[0].keys())
         self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
@@ -139,7 +140,7 @@ class visualization(object):
     def age_parameters(self, age_start, age_end):
         age_indexes = []
         for i in range(0, len(self.age_group_keys)):
-            if age_start < 5*(i+1) and age_end > 5*(i):
+            if age_start < 5*(i+1) and age_end >= 5*(i):
                 age_indexes.append(i)
         #for i in age_indexes:
         #    print(self.age_group_keys[i], age_start, age_end)
@@ -150,12 +151,12 @@ class visualization(object):
         years = []
         new_data = []
 
-        years.append(self.year_keys[0]-40)
-        years.append(self.year_keys[0]-30)
+        years.append(self.year_keys[0]-60)
+        years.append(self.year_keys[0]-50)
         for i in self.year_keys:
             years.append(i)
-        years.append(self.year_keys[-1]+50)
         years.append(self.year_keys[-1]+60)
+        years.append(self.year_keys[-1]+70)
 
         new_data.append(0)
         new_data.append(0)
@@ -170,7 +171,7 @@ class visualization(object):
         for deg in [2,3,4,5,6,7,8]:
             z_higher = np.polyfit(years, data, deg)
             f_higher = np.poly1d(z_higher)
-            if np.sum((f_higher(years) - data)**2) <= np.sum((f_best_fit(years) - data)**2):
+            if np.sum((f_higher(years[2:-2]) - data[2:-2])**2) <= np.sum((f_best_fit(years[2:-2]) - data[2:-2])**2):
                 degree = deg
                 f_best_fit = f_higher
         return f_best_fit
@@ -184,30 +185,38 @@ class visualization(object):
                 final.append(f[time == year])
         return np.array(final)
 
-    def part1_plotting(self, data, med_type_index, period_start, period_end, drug_list):
+    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region):
 
         time = np.linspace(period_start, period_end, period_end-period_start+1)
         bars = len(data)
         offset = 0.8/bars
+        if len(age_indexes) > 1:
+            alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
+        else:
+            alder = self.age_group_keys[age_indexes[0]]
 
         if type(data[0]) == type(np.array([1])):
             for i in range(len(data)):
                 func = self.curve_fitting(np.log(data[i]))
                 plt.bar(time-0.4+i*offset, self.final_function(data[i], np.exp(func(time)), time), width = offset, label = drug_list[i])
                 plt.legend()
+                plt.title(gender + ' i ' + region + ' alder ' + alder)
             plt.show()
         else:
             func = self.curve_fitting(np.log(data))
-            plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = folder_name)
+            plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = drug_list)
             plt.legend()
+            plt.title(gender + ' i ' + region + ' alder ' + alder)
             plt.show()
 
         return None
+
 
     def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
 
         data = np.zeros((len(self.drugs), len(self.year_keys)))
         age_indexes = self.age_parameters(age_start, age_end)
+
         #print(self.age_group_keys[age_indexes[0]], self.age_group_keys[age_indexes[-1]])
 
         for i in range(len(self.drugs)):
@@ -222,19 +231,38 @@ class visualization(object):
         ratio_list = self.drugs[:]
         del ratio_list[med_type_index]
 
-        self.part1_plotting(data, med_type_index, period_start, period_end, self.drugs)
-        self.part1_plotting(ratio, med_type_index, period_start, period_end, ratio_list)
+        self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region)
+        self.part1_plotting(ratio, period_start, period_end, ratio_list, age_indexes, gender, region)
+        return None
+
+
+    def individual(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+
+        data = np.zeros((len(self.drugs),len(self.year_keys)))
+        age_indexes = self.age_parameters(age_start, age_end)
+        med_index = self.drugs.index(drug)
+        med_type_index = self.drugs.index(self.folder_name)
+
+        for i in range(len(self.drugs)):
+            for k in range(len(self.year_keys)):
+                for j in range(len(age_indexes)):
+                    data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+
+        total_use = np.copy(data[med_type_index])
+        data_drugs = np.delete(data, med_type_index, 0)
+        ratio = data/total_use
+
+        self.part1_plotting(data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
+        self.part1_plotting(ratio[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
 
 
 
 
-
-
-
-#files('Antiepileptika').files_dict('Lamotrigin.xls')
 
 test = visualization('Antiepileptika')
-test.part1()
+#test.part1()
+#test.part1(region='Hele landet', age_start = 0, age_end = 14, period_start = 2004, period_end = 2018)
+test.individual('Lamotrigin', period_start = 1995, period_end = 2025)
 
 os.chdir(path)
 
