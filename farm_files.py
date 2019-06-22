@@ -211,18 +211,24 @@ class visualization(object):
 
         return None
 
-
-    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
-
+    def drug_array(self, age_indexes, region):
         data = np.zeros((len(self.drugs), len(self.year_keys)))
-        age_indexes = self.age_parameters(age_start, age_end)
-
-        #print(self.age_group_keys[age_indexes[0]], self.age_group_keys[age_indexes[-1]])
 
         for i in range(len(self.drugs)):
             for k in range(len(self.year_keys)):
                 for j in range(len(age_indexes)):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+
+        return data
+
+
+    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+
+        age_indexes = self.age_parameters(age_start, age_end)
+
+        #print(self.age_group_keys[age_indexes[0]], self.age_group_keys[age_indexes[-1]])
+
+        data = self.drug_array(age_indexes, region)
 
         med_type_index = self.drugs.index(self.folder_name)
         total_use = np.copy(data[med_type_index])
@@ -238,15 +244,11 @@ class visualization(object):
 
     def individual(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
 
-        data = np.zeros((len(self.drugs),len(self.year_keys)))
         age_indexes = self.age_parameters(age_start, age_end)
         med_index = self.drugs.index(drug)
         med_type_index = self.drugs.index(self.folder_name)
 
-        for i in range(len(self.drugs)):
-            for k in range(len(self.year_keys)):
-                for j in range(len(age_indexes)):
-                    data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+        data = self.drug_array(age_indexes, region)
 
         total_use = np.copy(data[med_type_index])
         data_drugs = np.delete(data, med_type_index, 0)
@@ -257,12 +259,29 @@ class visualization(object):
 
 
 
+    def cake_plot(self, data, med_type_index):
+        return None
+
+    def cake(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+
+        age_indexes = self.age_parameters(age_start, age_end)
+        med_type_index = self.drugs.index(self.folder_name)
+
+        data = self.drug_array(age_indexes, region)
+
+        total_use = np.copy(data[med_type_index])
+        data_drugs = np.delete(data, med_type_index, 0)
+        ratio = data/total_use
 
 
-test = visualization('Antiepileptika')
-#test.part1()
-#test.part1(region='Hele landet', age_start = 0, age_end = 14, period_start = 2004, period_end = 2018)
-test.individual('Lamotrigin', period_start = 1995, period_end = 2025)
+
+
+
+if __name__ == "__main__":
+    test = visualization('Antiepileptika')
+    #test.part1()
+    #test.part1(region='Hele landet', age_start = 0, age_end = 14, period_start = 2004, period_end = 2018)
+    test.individual('Lamotrigin', period_start = 1995, period_end = 2025)
 
 os.chdir(path)
 
