@@ -177,6 +177,12 @@ class visualization(object):
         return f_best_fit
 
     def final_function(self, data, f, time):
+        if type(time) == type([1]):
+            pass
+        else:
+            f = [f]
+            time = [time]
+
         final = []
         for year in time:
             if year in self.year_keys:
@@ -199,6 +205,7 @@ class visualization(object):
             for i in range(len(data)):
                 func = self.curve_fitting(np.log(data[i]))
                 plt.bar(time-0.4+i*offset, self.final_function(data[i], np.exp(func(time)), time), width = offset, label = drug_list[i])
+                #plt.plot(time, np.exp(func(time)))
                 plt.legend()
                 plt.title(gender + ' i ' + region + ' alder ' + alder)
             plt.show()
@@ -211,7 +218,7 @@ class visualization(object):
 
         return None
 
-    def drug_array(self, age_indexes, region):
+    def drug_array(self, age_indexes, region, gender):
         data = np.zeros((len(self.drugs), len(self.year_keys)))
 
         for i in range(len(self.drugs)):
@@ -226,9 +233,7 @@ class visualization(object):
 
         age_indexes = self.age_parameters(age_start, age_end)
 
-        #print(self.age_group_keys[age_indexes[0]], self.age_group_keys[age_indexes[-1]])
-
-        data = self.drug_array(age_indexes, region)
+        data = self.drug_array(age_indexes, region, gender)
 
         med_type_index = self.drugs.index(self.folder_name)
         total_use = np.copy(data[med_type_index])
@@ -248,7 +253,7 @@ class visualization(object):
         med_index = self.drugs.index(drug)
         med_type_index = self.drugs.index(self.folder_name)
 
-        data = self.drug_array(age_indexes, region)
+        data = self.drug_array(age_indexes, region, gender)
 
         total_use = np.copy(data[med_type_index])
         data_drugs = np.delete(data, med_type_index, 0)
@@ -259,20 +264,48 @@ class visualization(object):
 
 
 
-    def cake_plot(self, data, med_type_index):
+    def cake_plot(self, gender, region, data_drugs, data_tot_drugs, year, age_indexes, drug_list):
+
+        if len(age_indexes) > 1:
+            alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
+        else:
+            alder = self.age_group_keys[age_indexes[0]]
+
+        func = self.curve_fitting(np.log(data_tot_drugs))
+        func_value = self.final_function(data_tot_drugs, np.exp(func(year)), year)
+        x = []
+        explosion = []
+
+        for i in range(len(data_drugs)):
+            func = self.curve_fitting(np.log(data_drugs[i]))
+            x.append(self.final_function(data_drugs[i], np.exp(func(year)), year)/func_value)
+            explosion.append(0.01)
+
+        explosion.append(0.01)
+        x.append(1-np.sum(np.array(x)))
+        drug_list.append('Annet '+ self.folder_name)
+
+        plt.pie(x, explode = explosion, labels = drug_list, autopct='%1.1f%%',
+        shadow=True, startangle=90)
+        #plt.legend()
+        plt.title(gender + ' i ' + region + ' alder ' + alder + ' år ' + str(year))
+        plt.show()
+
         return None
 
-    def cake(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+    def cake(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, year = 2004):
 
         age_indexes = self.age_parameters(age_start, age_end)
         med_type_index = self.drugs.index(self.folder_name)
 
-        data = self.drug_array(age_indexes, region)
+        data = self.drug_array(age_indexes, region, gender)
 
         total_use = np.copy(data[med_type_index])
         data_drugs = np.delete(data, med_type_index, 0)
-        ratio = data/total_use
+        drug_list = self.drugs.copy()
+        del drug_list[med_type_index]
 
+        self.cake_plot(gender, region, data_drugs, total_use, year, age_indexes, drug_list)
 
 
 
@@ -280,10 +313,17 @@ class visualization(object):
 if __name__ == "__main__":
     test = visualization('Antiepileptika')
     #test.part1()
-    #test.part1(region='Hele landet', age_start = 0, age_end = 14, period_start = 2004, period_end = 2018)
-    test.individual('Lamotrigin', period_start = 1995, period_end = 2025)
+    #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
+    test.cake(year = 2018)
 
 os.chdir(path)
+
+"""
+Del 3:
+Ratio og Antall brukere
+"""
 
 
 
