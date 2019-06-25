@@ -7,6 +7,9 @@ import xlrd
 import time
 import warnings
 from scipy.optimize import curve_fit
+import statsmodels.api as sm
+import sys
+
 warnings.simplefilter('ignore', np.RankWarning)
 
 path = os.path.abspath(os.path.dirname(__file__))
@@ -168,7 +171,7 @@ class visualization(object):
 
         z_lower = np.polyfit(years, data, 2)
         f_best_fit = np.poly1d(z_lower)
-        for deg in [2,3,4,5,6,7,8]:
+        for deg in [2,4,6,8,10]:
             z_higher = np.polyfit(years, data, deg)
             f_higher = np.poly1d(z_higher)
             if np.sum((f_higher(years[2:-2]) - data[2:-2])**2) <= np.sum((f_best_fit(years[2:-2]) - data[2:-2])**2):
@@ -177,7 +180,7 @@ class visualization(object):
         return f_best_fit
 
     def final_function(self, data, f, time):
-        if type(time) == type([1]):
+        if type(time) == type([1]) or type(time) == type(np.array([1])):
             pass
         else:
             f = [f]
@@ -228,6 +231,33 @@ class visualization(object):
 
         return data
 
+    def cake_plot(self, gender, region, data_drugs, data_tot_drugs, year, age_indexes, drug_list):
+
+        if len(age_indexes) > 1:
+            alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
+        else:
+            alder = self.age_group_keys[age_indexes[0]]
+
+        func = self.curve_fitting(np.log(data_tot_drugs))
+        func_value = self.final_function(data_tot_drugs, np.exp(func(year)), year)
+        x = []
+        explosion = []
+
+        for i in range(len(data_drugs)):
+            func = self.curve_fitting(np.log(data_drugs[i]))
+            x.append(self.final_function(data_drugs[i], np.exp(func(year)), year)/func_value)
+            explosion.append(0.05)
+
+        explosion.append(0.05)
+        x.append(1-np.sum(np.array(x)))
+        drug_list.append('Resterende '+ self.folder_name)
+
+        plt.pie(x, explode = explosion, labels = drug_list, autopct='%1.1f%%', shadow=True, startangle=90)
+        plt.title(gender + ' i ' + region + ' alder ' + alder + ' år ' + str(year))
+        plt.show()
+
+        return None
+
 
     def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
 
@@ -263,35 +293,67 @@ class visualization(object):
         self.part1_plotting(ratio[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
 
 
+    def recommended(self, anbefalt = None, ikke_anbefalt = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 1995, period_end = 2030):
 
-    def cake_plot(self, gender, region, data_drugs, data_tot_drugs, year, age_indexes, drug_list):
+        if anbefalt == ikke_anbefalt:
+            print('Du må spesisere anbefalt eller ikke anbefalt medisin')
+            sys.exit()
 
-        if len(age_indexes) > 1:
-            alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
-        else:
-            alder = self.age_group_keys[age_indexes[0]]
+        age_indexes = self.age_parameters(age_start, age_end)
+        med_type_index = self.drugs.index(self.folder_name)
 
-        func = self.curve_fitting(np.log(data_tot_drugs))
-        func_value = self.final_function(data_tot_drugs, np.exp(func(year)), year)
-        x = []
-        explosion = []
+        data = self.drug_array(age_indexes, region, gender)
 
-        for i in range(len(data_drugs)):
-            func = self.curve_fitting(np.log(data_drugs[i]))
-            x.append(self.final_function(data_drugs[i], np.exp(func(year)), year)/func_value)
-            explosion.append(0.01)
+        if anbefalt == None:
+            data_not_recommended = np.zeros((len(ikke_anbefalt), len(self.year_keys)))
+            data_recommended = np.zeros((len(data) - len(ikke_anbefalt) - 1, len(self.year_keys)))
+            ikke_anbefalt_indexes = []
+            indexes = []
+            counter = 0
 
-        explosion.append(0.01)
-        x.append(1-np.sum(np.array(x)))
-        drug_list.append('Annet '+ self.folder_name)
+            for medisin in ikke_anbefalt:
+                index = (self.drugs.index(medisin))
+                indexes.append(index)
+                data_not_recommended[counter] = data[index]
+                counter += 1
 
-        plt.pie(x, explode = explosion, labels = drug_list, autopct='%1.1f%%',
-        shadow=True, startangle=90)
-        #plt.legend()
-        plt.title(gender + ' i ' + region + ' alder ' + alder + ' år ' + str(year))
-        plt.show()
+            counter = 0
+            for i in range(len(data)):
+                if (i in indexes) or (i == med_type_index):
+                    pass
+                else:
+                    data_recommended[counter] = data[i]
+                    counter += 1
+
+        if ikke_anbefalt == None:
+            data_recommended = np.zeros((len(anbefalt), len(self.year_keys)))
+            data_not_recommended = np.zeros((len(data) - len(anbefalt) - 1, len(self.year_keys)))
+            ikke_anbefalt_indexes = []
+            indexes = []
+            counter = 0
+
+            for medisin in anbefalt:
+                index = (self.drugs.index(medisin))
+                indexes.append(index)
+                data_recommended[counter] = data[index]
+                counter += 1
+
+            counter = 0
+            for i in range(len(data)):
+                if i in indexes or i == med_type_index:
+                    pass
+                else:
+                    data_not_recommended[counter] = data[i]
+                    counter += 1
+        ratio = np.sum(data_recommended, axis=0)/np.sum(data_not_recommended, axis = 0)
+        print(np.sum(data_recommended, axis=0))
+        print(np.sum(data_not_recommended, axis = 0))
+
+        self.part1_plotting(ratio, period_start, period_end, 'Ratio', age_indexes, gender, region)
+
 
         return None
+
 
     def cake(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, year = 2004):
 
@@ -310,13 +372,15 @@ class visualization(object):
 
 
 
+
+
 if __name__ == "__main__":
     test = visualization('Antiepileptika')
-    #test.part1()
-    #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
-    test.cake(year = 2018)
+    test.part1()
+    test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
+    test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
+    test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
+    test.recommended(ikke_anbefalt = ['Valproat'])
 
 os.chdir(path)
 
