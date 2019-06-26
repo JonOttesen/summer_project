@@ -9,6 +9,8 @@ import warnings
 from scipy.optimize import curve_fit
 import statsmodels.api as sm
 import sys
+from matplotlib.animation import FuncAnimation
+
 
 warnings.simplefilter('ignore', np.RankWarning)
 
@@ -142,12 +144,15 @@ class visualization(object):
 
     def age_parameters(self, age_start, age_end):
         age_indexes = []
-        for i in range(0, len(self.age_group_keys)):
-            if age_start < 5*(i+1) and age_end >= 5*(i):
-                age_indexes.append(i)
-        #for i in age_indexes:
-        #    print(self.age_group_keys[i], age_start, age_end)
+        if age_start >= 90:
+            age_indexes.append(len(self.age_group_keys)-1)
+        else:
+            for i in range(0, len(self.age_group_keys)):
+                if age_start < 5*(i+1) and age_end >= 5*(i):
+                    age_indexes.append(i)
+
         return age_indexes
+
 
     def curve_fitting(self, data):
         degree = 1
@@ -179,6 +184,7 @@ class visualization(object):
                 f_best_fit = f_higher
         return f_best_fit
 
+
     def final_function(self, data, f, time):
         if type(time) == type([1]) or type(time) == type(np.array([1])):
             pass
@@ -193,6 +199,7 @@ class visualization(object):
             else:
                 final.append(f[time == year])
         return np.array(final)
+
 
     def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region):
 
@@ -221,6 +228,7 @@ class visualization(object):
 
         return None
 
+
     def drug_array(self, age_indexes, region, gender):
         data = np.zeros((len(self.drugs), len(self.year_keys)))
 
@@ -230,6 +238,7 @@ class visualization(object):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
 
         return data
+
 
     def cake_plot(self, gender, region, data_drugs, data_tot_drugs, year, age_indexes, drug_list):
 
@@ -370,17 +379,69 @@ class visualization(object):
         self.cake_plot(gender, region, data_drugs, total_use, year, age_indexes, drug_list)
 
 
+    def individual_time(self, drug, gender = 'Kvinne', region = 'Hele landet'):
+
+        age_indexes = self.age_parameters(0, 100)
+        med_index = self.drugs.index(drug)
+        med_type_index = self.drugs.index(self.folder_name)
+        med_dict = self.data[med_index]
+        data = np.zeros((len(self.age_group_keys) ,len(self.year_keys)))
+        x_axis = np.linspace(1, len(self.age_group_keys), len(self.age_group_keys))
+
+        index = 0
+        for k in self.age_group_keys:
+            for i in range(len(self.year_keys)):
+                year = self.year_keys[i]
+                data[index][i] = med_dict[gender][year][k][region]
+            index += 1
+
+        f = interpolate.interp1d(self.year_keys, data, fill_value='extrapolate')
+        x = np.linspace(0, len(self.age_group_keys)-1, len(self.age_group_keys))
+
+        fig, ax = plt.subplots(figsize = [12, 4.8])
+        xdata, ydata = [], []
+        ln, = plt.plot([], [], 'ro')
+
+        def init():
+            ax.set_xlim(-1, len(self.age_group_keys))
+            ax.set_ylim(0, 1.5*np.max(data))
+            plt.xticks(np.arange(len(self.age_group_keys)), self.age_group_keys, fontsize = 7)
+            plt.xlabel('Alder')
+            plt.ylabel('Antall utskrivninger')
+            return ln,
+
+        def update(frame):
+            ln.set_data(x, f(frame))
+            ax.set_title('Medisin: %s i år %.2f' %(drug, frame))
+            return ln,
+
+        ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 1)
+        plt.show()
+
+
+
+    def Norway_plot(self):
+        # setup Lambert Conformal basemap.
+        m = Basemap(width=12000000,height=9000000,projection='lcc', resolution='c',lat_1=45.,lat_2=55,lat_0=50,lon_0=-107.)
+        m.drawcoastlines()
+        m.drawmapboundary(fill_color='aqua')
+        m.fillcontinents(color='coral',lake_color='aqua')
+        plt.show()
+
+
 
 
 
 
 if __name__ == "__main__":
     test = visualization('Antiepileptika')
-    test.part1()
-    test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
-    test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
-    test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
-    test.recommended(ikke_anbefalt = ['Valproat'])
+    #test.part1()
+    #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 70)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
+    #test.recommended(ikke_anbefalt = ['Valproat'])
+    test.individual_time('Levetiracetam')
 
 os.chdir(path)
 
