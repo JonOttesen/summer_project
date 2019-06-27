@@ -6,7 +6,6 @@ from scipy import interpolate
 import xlrd
 import time
 import warnings
-from scipy.optimize import curve_fit
 import statsmodels.api as sm
 import sys
 from matplotlib.animation import FuncAnimation
@@ -43,7 +42,6 @@ class files(object):
         indexes = self.year_indexes()
 
         d_indexes = int(indexes[1]-indexes[0])
-        users = np.zeros(shape = (len(indexes), d_indexes))
         years = np.zeros(len(indexes))
         age_groups = []
         places = []
@@ -53,17 +51,32 @@ class files(object):
             places.append(self.df.iloc[g,4])
             genders.append(self.df.iloc[g,3])
 
+        age_groups = self.ordering(age_groups)
+        genders = self.ordering(genders)
+        places = self.ordering(places)
+        users = np.zeros(shape = (len(genders),len(indexes), int(d_indexes/len(genders))))
+
         for k in range(len(indexes)):
             years[k] = (self.df.iloc[indexes[k],1])
             counter = 0
+            index_counter_for_gender = 0
+            prev_count = 0
 
             for j in range(indexes[k], indexes[k]+d_indexes):
                 use = self.df.iloc[j,6]
-                if type(use) != type(2):
-                    use = 0
-                users[k,counter] = use
-                counter += 1
+                if type(use) != type(2):  #Check for NaN, Inf or "Below 5" types. Setting them to 1 to avoid divide by 0 in the future
+                    use = 1
 
+                if counter > len(places) - 1 + prev_count:
+                    if index_counter_for_gender >= len(genders)-1:
+                        index_counter_for_gender = 0
+                        prev_count = counter
+                    else:
+                        counter = prev_count
+                        index_counter_for_gender += 1
+
+                users[index_counter_for_gender, k, counter] = use
+                counter += 1
 
         return years, users, age_groups, places, genders
 
@@ -96,16 +109,12 @@ class files(object):
 
         d_indexes = int(indexes[1]-indexes[0])
         years, users, age_groups, places, genders = self.opening(file_name)
-        users1 = np.concatenate(users)
 
-        age_groups = self.ordering(age_groups)
-        genders = self.ordering(genders)
-        places = self.ordering(places)
-        years = np.array(years)
-
-        counter = 0
+        counter2 = 0
         for gender in genders:  #Looping through the different parameters
             users_dict[gender] = {}
+            users1 = np.concatenate(users[counter2])
+            counter = 0
 
             for year in years:
                 users_dict[gender][year] = {}
@@ -116,6 +125,8 @@ class files(object):
                     for place in places:
                         users_dict[gender][year][age_group][place] = users1[counter]
                         counter += 1
+            counter2 += 1
+
         return users_dict
 
 
@@ -135,6 +146,7 @@ class visualization(object):
 
         for filename in self.filenames:
             self.data.append(files(folder_name).files_dict(filename))  #Dictionaries for all the xls files in the folder
+
 
         self.gender_keys = list(self.data[0].keys())
         self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
@@ -201,7 +213,7 @@ class visualization(object):
         return np.array(final)
 
 
-    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region):
+    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Antall utskrivninger'):
 
         time = np.linspace(period_start, period_end, period_end-period_start+1)
         bars = len(data)
@@ -218,12 +230,16 @@ class visualization(object):
                 #plt.plot(time, np.exp(func(time)))
                 plt.legend()
                 plt.title(gender + ' i ' + region + ' alder ' + alder)
+            plt.xlabel('År')
+            plt.ylabel(label)
             plt.show()
         else:
             func = self.curve_fitting(np.log(data))
             plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = drug_list)
             plt.legend()
             plt.title(gender + ' i ' + region + ' alder ' + alder)
+            plt.xlabel('År')
+            plt.ylabel(label)
             plt.show()
 
         return None
@@ -282,8 +298,7 @@ class visualization(object):
         del ratio_list[med_type_index]
 
         self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region)
-        self.part1_plotting(ratio, period_start, period_end, ratio_list, age_indexes, gender, region)
-        return None
+        self.part1_plotting(ratio, period_start, period_end, ratio_list, age_indexes, gender, region, label = 'Ratio')
 
 
     def individual(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
@@ -299,7 +314,7 @@ class visualization(object):
         ratio = data/total_use
 
         self.part1_plotting(data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
-        self.part1_plotting(ratio[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
+        self.part1_plotting(ratio[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region, label = 'Ratio')
 
 
     def recommended(self, anbefalt = None, ikke_anbefalt = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 1995, period_end = 2030):
@@ -314,6 +329,11 @@ class visualization(object):
         data = self.drug_array(age_indexes, region, gender)
 
         if anbefalt == None:
+            if type(ikke_anbefalt) == type([]):
+                pass
+            else:
+                ikke_anbefalt = [ikke_anbefalt]
+
             data_not_recommended = np.zeros((len(ikke_anbefalt), len(self.year_keys)))
             data_recommended = np.zeros((len(data) - len(ikke_anbefalt) - 1, len(self.year_keys)))
             ikke_anbefalt_indexes = []
@@ -335,6 +355,11 @@ class visualization(object):
                     counter += 1
 
         if ikke_anbefalt == None:
+            if type(anbefalt) == type([]):
+                pass
+            else:
+                anbefalt = [anbefalt]
+
             data_recommended = np.zeros((len(anbefalt), len(self.year_keys)))
             data_not_recommended = np.zeros((len(data) - len(anbefalt) - 1, len(self.year_keys)))
             ikke_anbefalt_indexes = []
@@ -355,10 +380,8 @@ class visualization(object):
                     data_not_recommended[counter] = data[i]
                     counter += 1
         ratio = np.sum(data_recommended, axis=0)/np.sum(data_not_recommended, axis = 0)
-        print(np.sum(data_recommended, axis=0))
-        print(np.sum(data_not_recommended, axis = 0))
 
-        self.part1_plotting(ratio, period_start, period_end, 'Ratio', age_indexes, gender, region)
+        self.part1_plotting(ratio, period_start, period_end, 'Ratio', age_indexes, gender, region, label = 'Ratio')
 
 
         return None
@@ -379,7 +402,7 @@ class visualization(object):
         self.cake_plot(gender, region, data_drugs, total_use, year, age_indexes, drug_list)
 
 
-    def individual_time(self, drug, gender = 'Kvinne', region = 'Hele landet'):
+    def individual_time(self, drug, gender = 'Kvinne', region = 'Hele landet', ratio = False):
 
         age_indexes = self.age_parameters(0, 100)
         med_index = self.drugs.index(drug)
@@ -395,7 +418,21 @@ class visualization(object):
                 data[index][i] = med_dict[gender][year][k][region]
             index += 1
 
-        f = interpolate.interp1d(self.year_keys, data, fill_value='extrapolate')
+        if ratio:
+            med_dict2 = self.data[med_type_index]
+            data_tot = np.zeros((len(self.age_group_keys) ,len(self.year_keys)))
+            index = 0
+
+            for k in self.age_group_keys:
+                for i in range(len(self.year_keys)):
+                    year = self.year_keys[i]
+                    data_tot[index][i] = med_dict2[gender][year][k][region]
+                index += 1
+
+            f = interpolate.interp1d(self.year_keys, data/data_tot, fill_value='extrapolate')
+        else:
+            f = interpolate.interp1d(self.year_keys, data, fill_value='extrapolate')
+
         x = np.linspace(0, len(self.age_group_keys)-1, len(self.age_group_keys))
 
         fig, ax = plt.subplots(figsize = [12, 4.8])
@@ -404,44 +441,48 @@ class visualization(object):
 
         def init():
             ax.set_xlim(-1, len(self.age_group_keys))
-            ax.set_ylim(0, 1.5*np.max(data))
             plt.xticks(np.arange(len(self.age_group_keys)), self.age_group_keys, fontsize = 7)
             plt.xlabel('Alder')
-            plt.ylabel('Antall utskrivninger')
+            if ratio:
+                ax.set_ylim(0, 1.5*np.max(data/data_tot))
+                plt.ylabel('Ratio')
+            else:
+                ax.set_ylim(0, 1.5*np.max(data))
+                plt.ylabel('Antall utskrivninger')
             return ln,
 
         def update(frame):
             ln.set_data(x, f(frame))
-            ax.set_title('Medisin: %s i år %.2f' %(drug, frame))
+            ax.set_title('Medisin for %s i %s: %s i år %.2f' %(gender, region, drug, frame))
             return ln,
 
-        ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 1)
-        plt.show()
-
-
-
-    def Norway_plot(self):
-        # setup Lambert Conformal basemap.
-        m = Basemap(width=12000000,height=9000000,projection='lcc', resolution='c',lat_1=45.,lat_2=55,lat_0=50,lon_0=-107.)
-        m.drawcoastlines()
-        m.drawmapboundary(fill_color='aqua')
-        m.fillcontinents(color='coral',lake_color='aqua')
-        plt.show()
-
-
+        try:
+            __IPYTHON__
+        except NameError:
+            ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 1, repeat = True)
+            plt.show()
+        else:
+            ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 40, repeat = True)
+            plt.close()
+            return ani.to_html5_video()
+        # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
 
 
 
 if __name__ == "__main__":
+    #opening_test = files('Antiepileptika')
+    #opening_test.files_dict('Valproat.xls')
+
     test = visualization('Antiepileptika')
-    #test.part1()
+    test.part1(gender = 'Mann')
     #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 70)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
     #test.recommended(ikke_anbefalt = ['Valproat'])
-    test.individual_time('Levetiracetam')
+    #test.individual_time('Valproat', gender = 'Mann')
+
 
 os.chdir(path)
 
