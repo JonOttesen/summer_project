@@ -20,9 +20,6 @@ class files(object):
     def __init__(self, folder_name):
         self.directory = folder_name
 
-    def output(self):
-        return None
-
     def year_indexes(self):
         """
         Finds the indexes for all rows which contains a year written in i.e non empty
@@ -56,6 +53,7 @@ class files(object):
         places = self.ordering(places)
         users = np.zeros(shape = (len(genders),len(indexes), int(d_indexes/len(genders))))
 
+        #The first index in the excel file is the row while the second is the column
         for k in range(len(indexes)):
             years[k] = (self.df.iloc[indexes[k],1])
             counter = 0
@@ -129,6 +127,89 @@ class files(object):
 
         return users_dict
 
+    def population_excel(self, file_name):
+        """
+        Reads the population data from SSB
+        """
+        os.chdir(self.directory)
+
+        wb = xlrd.open_workbook(file_name, logfile=open(os.devnull, 'w'))  #39.58 sek on test
+        self.df = pd.read_excel(wb, engine='xlrd')
+        #self.df = pd.read_excel(io = file_name, sheet = 0)  #38.97 on test
+
+        os.chdir(path)
+
+        region_indexes = []
+        places = []
+        for i in range(len(self.df.iloc[:])):
+
+            if type(self.df.iloc[i,0]) == type('str'):
+                if np.isnan(self.df.iloc[i,3]):
+                    last_index = i-1
+                    break
+                if 'Finnmark' in self.df.iloc[i,0][3:]:
+                    places.append('Finnmark')
+                elif 'Troms' in (self.df.iloc[i,0][3:]):
+                    places.append('Troms')
+                else:
+                    places.append(self.df.iloc[i,0][3:])
+                region_indexes.append(i)
+
+        d_indexes = region_indexes[1] - region_indexes[0]
+        years = []
+        age_groups = []
+        genders = []
+        year_indexes = []
+
+        for i in range(3,len(self.df.iloc[region_indexes[0]])):  #3 is the number the year counting starts
+            years.append(float(self.df.iloc[2,i]))
+            year_indexes.append(i)
+
+        for i in range(region_indexes[0], region_indexes[1]):
+            if type(self.df.iloc[i,1]) == type('str'):
+                if 'Kvinne' in self.df.iloc[i,1]:  #To make sure both Excel files use the same keys i.e 'Kvinne' for both
+                    genders.append(self.df.iloc[i,1][:-1])
+                elif 'M' in self.df.iloc[i,1] and 'nn' in self.df.iloc[i,1]:
+                    genders.append('Mann')
+                else:
+                    genders.append(self.df.iloc[i,1])
+            if len(genders) < 2:
+                if 'år' in self.df.iloc[i, 2]:
+                    age_groups.append(self.df.iloc[i, 2][:-3])
+                else:
+                    age_groups.append(self.df.iloc[i, 2])
+
+        j, k, l = 0, 0, 0 #Indexes to interate over
+        users_dict = {}
+        for gender in genders:  #Looping through the different parameters
+            users_dict[gender] = {}
+            j = 0
+
+            for year in years:
+                users_dict[gender][year] = {}
+                k = 0
+
+                for age_group in age_groups:
+                    users_dict[gender][year][age_group] = {}
+                    l = 0
+                    tronderlag_sum = 0
+
+                    for place in places:
+                        if 'Trøndelag' in place:  #Sum such that the only key is Trøndelag
+                            tronderlag_sum += self.df.iloc[region_indexes[l] + k, year_indexes[j]]
+                        else:
+                            users_dict[gender][year][age_group][place] = self.df.iloc[region_indexes[l] + k, year_indexes[j]]
+                        l += 1
+                    users_dict[gender][year][age_group]['Trøndelag'] = tronderlag_sum
+                    k += 1
+                j += 1
+        print(users_dict['Mann'][2005]['5-9'])
+
+
+
+
+
+
 
 class visualization(object):
 
@@ -138,6 +219,10 @@ class visualization(object):
         os.chdir(self.folder_name)
         self.filenames = os.listdir()
         os.chdir(path)
+        try:
+            self.filenames.remove('Befolkning.xlsx')
+        except:
+            pass
 
         self.data = []
         self.drugs = []  #Name of the drugs
@@ -468,20 +553,31 @@ class visualization(object):
         # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
 
+    def part3(self, prevalens, sykdom = 'Epilepsi', gruppe_antall = 56552, antall_tilfeller = 98, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+        chance_pr_person = antall_tilfeller/gruppe_antall
+
+        #Source SSB https://www.ssb.no/statbank/table/07459/
+        males_in_norway = np.array([151852, 164083, 164061, 165165, 176336, 189610, 186264, 181466, 179750, 194074, 187947, 166140, 152590, 136125, 125400, 76728, 47100, 27209, 13173])
+        females_in_norway = np.array([143011, 155970, 155981, 155334, 164895, 181578, 178708, 170931, 170461, 184354, 178097, 159560, 151153, 136879, 130391, 87319, 62110, 44612, 31795])
+        print(self.places)
+
+
+
 
 
 if __name__ == "__main__":
-    #opening_test = files('Antiepileptika')
-    #opening_test.files_dict('Valproat.xls')
+    opening_test = files('Antiepileptika')
+    opening_test.population_excel('Befolkning.xlsx')
 
-    test = visualization('Antiepileptika')
-    test.part1(gender = 'Mann')
+    #test = visualization('Antiepileptika')
+    #test.part1(gender = 'Mann')
     #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 70)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 50, age_end = 100)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
+    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
     #test.individual_time('Valproat', gender = 'Mann')
+    #test.part3(0.7)
 
 
 os.chdir(path)
