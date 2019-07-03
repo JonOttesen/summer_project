@@ -127,7 +127,7 @@ class files(object):
 
         return users_dict
 
-    def population_excel(self, file_name):
+    def population_excel(self, file_name, stop_at_90 = True):
         """
         Reads the population data from SSB
         """
@@ -179,11 +179,28 @@ class files(object):
                 else:
                     age_groups.append(self.df.iloc[i, 2])
 
-        j, k, l = 0, 0, 0 #Indexes to interate over
+        if stop_at_90:
+            age_groups2 = []
+            for letters in age_groups:  #To match the format of reseptregisteret and end with 90+ not 100+
+                nol = len(letters)-1  #Numbers of letters
+                if '90' in letters:
+                    age_groups2.append('90+')
+                    break
+                else:
+                    age_groups2.append(letters[:int(nol/2)] + ' - ' + letters[int(nol/2+1):])
+            delta_age_len = len(age_groups) - len(age_groups2)
+            age_groups = age_groups2
+
+        else:
+            delta_age_len = 0
+
+        j, k, l, i = 0, 0, 0, 0 #Indexes to interate over
         users_dict = {}
+
         for gender in genders:  #Looping through the different parameters
             users_dict[gender] = {}
             j = 0
+            d = int(d_indexes*i/2)
 
             for year in years:
                 users_dict[gender][year] = {}
@@ -193,19 +210,30 @@ class files(object):
                     users_dict[gender][year][age_group] = {}
                     l = 0
                     tronderlag_sum = 0
+                    if stop_at_90 and age_group == '90+':  #Stop the summation when not at 90+ or when we don't stop at 90+
+                        summation = True
+                    else:
+                        summation = False
 
                     for place in places:
                         if 'Trøndelag' in place:  #Sum such that the only key is Trøndelag
-                            tronderlag_sum += self.df.iloc[region_indexes[l] + k, year_indexes[j]]
+                            if summation:
+                                tronderlag_sum += np.sum(self.df.iloc[region_indexes[l] + k + d: region_indexes[l] + k + delta_age_len + d+ 1, year_indexes[j]])
+                            else:
+                                tronderlag_sum += self.df.iloc[region_indexes[l] + k + d, year_indexes[j]]
                         else:
-                            users_dict[gender][year][age_group][place] = self.df.iloc[region_indexes[l] + k, year_indexes[j]]
+                            if summation:
+                                users_dict[gender][year][age_group][place] = np.sum(self.df.iloc[region_indexes[l] + k + d: region_indexes[l] + k + delta_age_len + d + 1, year_indexes[j]])
+                            else:
+                                users_dict[gender][year][age_group][place] = self.df.iloc[region_indexes[l] + k + d, year_indexes[j]]
+
                         l += 1
                     users_dict[gender][year][age_group]['Trøndelag'] = tronderlag_sum
                     k += 1
                 j += 1
-        print(users_dict['Mann'][2005]['5-9'])
+            i += 1
 
-
+        return users_dict
 
 
 
@@ -263,12 +291,12 @@ class visualization(object):
         years.append(self.year_keys[-1]+60)
         years.append(self.year_keys[-1]+70)
 
-        new_data.append(0)
-        new_data.append(0)
+        new_data.append(0.01)
+        new_data.append(0.1)
         for i in data:
             new_data.append(i)
-        new_data.append(0)
-        new_data.append(0)
+        new_data.append(0.1)
+        new_data.append(0.01)
         data = np.array(new_data)
 
         z_lower = np.polyfit(years, data, 2)
@@ -337,7 +365,6 @@ class visualization(object):
             for k in range(len(self.year_keys)):
                 for j in range(len(age_indexes)):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
-
         return data
 
 
