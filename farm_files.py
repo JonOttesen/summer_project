@@ -16,6 +16,11 @@ warnings.simplefilter('ignore', np.RankWarning)
 path = os.path.abspath(os.path.dirname(__file__))
 
 class files(object):
+    """
+    The functions meant to be called are:
+    files_dict for reseptregisteret files
+    population_excel for SSB population data
+    """
 
     def __init__(self, folder_name):
         self.directory = folder_name
@@ -90,7 +95,7 @@ class files(object):
 
     def files_dict(self, file_name):
         """
-        Places all parameters in a single dictonary.
+        Places all parameters in a single dictonary for the excel file from reseptregisteret.
         Order in the dictionary: Gender -> Year -> Age group -> Place (fylke/region/hele landet).
         """
         os.chdir(self.directory)
@@ -129,7 +134,8 @@ class files(object):
 
     def population_excel(self, file_name, stop_at_90 = True):
         """
-        Reads the population data from SSB
+        Places all parameters in a single dictonary for the excel file from SSB.
+        Order in the dictionary: Gender -> Year -> Age group -> Place (fylke).
         """
         os.chdir(self.directory)
 
@@ -147,7 +153,7 @@ class files(object):
                 if np.isnan(self.df.iloc[i,3]):
                     last_index = i-1
                     break
-                if 'Finnmark' in self.df.iloc[i,0][3:]:
+                if 'Finnmark' in self.df.iloc[i,0][3:]:  #Removing the extra names of these counties from the SSB excel file
                     places.append('Finnmark')
                 elif 'Troms' in (self.df.iloc[i,0][3:]):
                     places.append('Troms')
@@ -216,8 +222,8 @@ class files(object):
                         summation = False
 
                     for place in places:
-                        if 'Trøndelag' in place:  #Sum such that the only key is Trøndelag
-                            if summation:
+                        if 'Trøndelag' in place:  #Sum such that the only key is Trøndelag before 2017 and after. Not divided to north and south.
+                            if summation:  #Make sure all people over 90 is summed up not divided into 90-94, 95-99 etc. This is to match the data from reseptregisteret.
                                 tronderlag_sum += np.sum(self.df.iloc[region_indexes[l] + k + d: region_indexes[l] + k + delta_age_len + d+ 1, year_indexes[j]])
                             else:
                                 tronderlag_sum += self.df.iloc[region_indexes[l] + k + d, year_indexes[j]]
@@ -237,11 +243,9 @@ class files(object):
 
 
 
-
-
 class visualization(object):
 
-    def __init__(self, folder_name):
+    def __init__(self, folder_name, stop_at_90 = True):
         self.folder_name = folder_name
 
         os.chdir(self.folder_name)
@@ -249,6 +253,11 @@ class visualization(object):
         os.chdir(path)
         try:
             self.filenames.remove('Befolkning.xlsx')
+            self.population = files(folder_name).population_excel('Befolkning.xlsx', stop_at_90)
+            self.p_gender_keys = list(self.population.keys())
+            self.p_year_keys = list(self.population[self.p_gender_keys[0]].keys())
+            self.p_age_group_keys = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]].keys())
+            self.p_places = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]][self.p_age_group_keys[0]].keys())
         except:
             pass
 
@@ -267,12 +276,17 @@ class visualization(object):
         self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())
 
 
-    def age_parameters(self, age_start, age_end):
+    def age_parameters(self, age_start, age_end, age_group_keys = None):
+        if age_group_keys == None:
+            age_group_keys = self.age_group_keys
+        else:
+            pass
+
         age_indexes = []
         if age_start >= 90:
-            age_indexes.append(len(self.age_group_keys)-1)
+            age_indexes.append(len(age_group_keys)-1)
         else:
-            for i in range(0, len(self.age_group_keys)):
+            for i in range(0, len(age_group_keys)):
                 if age_start < 5*(i+1) and age_end >= 5*(i):
                     age_indexes.append(i)
 
@@ -331,6 +345,7 @@ class visualization(object):
         time = np.linspace(period_start, period_end, period_end-period_start+1)
         bars = len(data)
         offset = 0.8/bars
+
         if len(age_indexes) > 1:
             alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
         else:
@@ -365,6 +380,15 @@ class visualization(object):
             for k in range(len(self.year_keys)):
                 for j in range(len(age_indexes)):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+        return data
+
+
+    def population_array(self, age_indexes, region, gender):
+        data = np.zeros((len(self.p_year_keys)))
+
+        for k in range(len(self.p_year_keys)):
+            for j in range(len(age_indexes)):
+                data[k] += self.population[gender][self.p_year_keys[k]][self.p_age_group_keys[age_indexes[j]]][region]
         return data
 
 
@@ -579,24 +603,84 @@ class visualization(object):
             return ani.to_html5_video()
         # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
+    def probability(self, probs):
 
-    def part3(self, prevalens, sykdom = 'Epilepsi', gruppe_antall = 56552, antall_tilfeller = 98, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
-        chance_pr_person = antall_tilfeller/gruppe_antall
+        if np.sum(probs)>1:
+            probs /= 100
+            print('Do not use probability in %, this is now fixed but for furture reference')
+        else:
+            pass
 
+        tot_prob = probs[0]
+        for i in range(1, len(probs)):
+            tot_prob += probs[i] + probs[i]*probs[i-1]
+
+        return tot_prob
+
+
+    def part3(self, prevalens, sykdom = 'Epilepsi', gender = 'Mann', region = 'Hele landet', age_start = 0, age_end= 100, period_start = 2004, period_end = 2030):
+
+        if type(prevalens) == type([]):
+            prevalens = self.probability(np.array(prevalens)/100)
+        else:
+            prevalens /= 100
         #Source SSB https://www.ssb.no/statbank/table/07459/
-        males_in_norway = np.array([151852, 164083, 164061, 165165, 176336, 189610, 186264, 181466, 179750, 194074, 187947, 166140, 152590, 136125, 125400, 76728, 47100, 27209, 13173])
-        females_in_norway = np.array([143011, 155970, 155981, 155334, 164895, 181578, 178708, 170931, 170461, 184354, 178097, 159560, 151153, 136879, 130391, 87319, 62110, 44612, 31795])
-        print(self.places)
 
+        age_indexes = self.age_parameters(age_start, age_end)
+        data = self.drug_array(age_indexes, region, gender)
+
+        if region == 'Hele landet':
+            p_data = self.population_array(age_indexes, self.p_places[0], gender)
+            for k in range(1,len(self.p_places)):
+                p_data += self.population_array(age_indexes, self.p_places[k], gender)
+        else:
+            p_data = self.population_array(age_indexes, region, gender)
+
+        plotting_data =  np.zeros((len(self.drugs) + 1, len(self.year_keys)))
+        plotting_data[:-1] = data
+        plotting_data[-1] = p_data*prevalens
+        drugs_name = self.drugs
+        drugs_name.append('Prevalens: %.2f%%' %(prevalens*100))
+
+        self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = 'Antall personer')
+
+
+    def individual_population(self, prevalens, drug = 'Valproat', gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True):
+
+        if type(prevalens) == type([]):
+            prevalens = self.probability(np.array(prevalens)/100)
+        else:
+            prevalens /= 100
+        #Source SSB https://www.ssb.no/statbank/table/07459/
+
+        age_indexes = self.age_parameters(age_start, age_end)
+        data = self.drug_array(age_indexes, region, gender)
+
+        if region == 'Hele landet':
+            p_data = self.population_array(age_indexes, self.p_places[0], gender)
+            for k in range(1,len(self.p_places)):
+                p_data += self.population_array(age_indexes, self.p_places[k], gender)
+        else:
+            p_data = self.population_array(age_indexes, region, gender)
+
+        med_index = self.drugs.index(drug)
+        med_type_index = self.drugs.index(self.folder_name)
+
+        data_drugs = np.delete(data, med_type_index, 0)
+
+        if ratio:
+            self.part1_plotting(data[med_index]/(prevalens*p_data), period_start, period_end, 'Ratio '+self.drugs[med_index]+' over antall med sykdom X', age_indexes, gender, region, label = 'Ratio')
+        else:
+            self.part1_plotting([data[med_index], p_data], period_start, period_end, [self.drugs[med_index], 'Befolkning med X'] , age_indexes, gender, region)
 
 
 
 
 if __name__ == "__main__":
-    opening_test = files('Antiepileptika')
-    opening_test.population_excel('Befolkning.xlsx')
+    #opening_test = files('Antiepileptika')
+    #opening_test.population_excel('Befolkning.xlsx')
 
-    #test = visualization('Antiepileptika')
+    test = visualization('Antiepileptika')
     #test.part1(gender = 'Mann')
     #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
@@ -604,7 +688,7 @@ if __name__ == "__main__":
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
     #test.individual_time('Valproat', gender = 'Mann')
-    #test.part3(0.7)
+    test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
 
 
 os.chdir(path)
