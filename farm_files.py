@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings("ignore")
+
 import os
 import pandas as pd
 import numpy as np
@@ -5,13 +8,11 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 import xlrd
 import time
-import warnings
 import statsmodels.api as sm
 import sys
 from matplotlib.animation import FuncAnimation
 
-
-warnings.simplefilter('ignore', np.RankWarning)
+warnings.filterwarnings("ignore")
 
 path = os.path.abspath(os.path.dirname(__file__))
 
@@ -251,6 +252,7 @@ class visualization(object):
         os.chdir(self.folder_name)
         self.filenames = os.listdir()
         os.chdir(path)
+
         try:
             self.filenames.remove('Befolkning.xlsx')
             self.population = files(folder_name).population_excel('Befolkning.xlsx', stop_at_90)
@@ -380,6 +382,7 @@ class visualization(object):
             for k in range(len(self.year_keys)):
                 for j in range(len(age_indexes)):
                     data[i, k] += self.data[i][gender][self.year_keys[k]][self.age_group_keys[age_indexes[j]]][region]
+
         return data
 
 
@@ -572,6 +575,7 @@ class visualization(object):
         x = np.linspace(0, len(self.age_group_keys)-1, len(self.age_group_keys))
 
         fig, ax = plt.subplots(figsize = [12, 4.8])
+
         xdata, ydata = [], []
         ln, = plt.plot([], [], 'ro')
 
@@ -598,8 +602,7 @@ class visualization(object):
             ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 1, repeat = True)
             plt.show()
         else:
-            ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=False, interval = 40, repeat = True)
-            plt.close()
+            ani = FuncAnimation(fig, update, frames=np.linspace(self.year_keys[0], self.year_keys[-1], 250), init_func=init, blit=True, interval = 40, repeat = True)
             return ani.to_html5_video()
         # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
@@ -639,7 +642,7 @@ class visualization(object):
         plotting_data =  np.zeros((len(self.drugs) + 1, len(self.year_keys)))
         plotting_data[:-1] = data
         plotting_data[-1] = p_data*prevalens
-        drugs_name = self.drugs
+        drugs_name = self.drugs[:]
         drugs_name.append('Prevalens: %.2f%%' %(prevalens*100))
 
         self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = 'Antall personer')
@@ -679,7 +682,6 @@ class visualization(object):
 if __name__ == "__main__":
     #opening_test = files('Antiepileptika')
     #opening_test.population_excel('Befolkning.xlsx')
-
     test = visualization('Antiepileptika')
     #test.part1(gender = 'Mann')
     #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
@@ -688,6 +690,7 @@ if __name__ == "__main__":
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
     #test.individual_time('Valproat', gender = 'Mann')
+    test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
     test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
 
 
