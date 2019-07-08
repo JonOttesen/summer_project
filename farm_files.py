@@ -11,6 +11,7 @@ import time
 import statsmodels.api as sm
 import sys
 from matplotlib.animation import FuncAnimation
+import csv
 
 warnings.filterwarnings("ignore")
 
@@ -25,6 +26,7 @@ class files(object):
 
     def __init__(self, folder_name):
         self.directory = folder_name
+
 
     def year_indexes(self):
         """
@@ -49,24 +51,24 @@ class files(object):
         age_groups = []
         places = []
         genders = []
-        for g in range(indexes[0], indexes[0] + d_indexes):
+        for g in range(indexes[0], indexes[0] + d_indexes):  #Creates lists containing all possible age groups, genders and places
             age_groups.append(self.df.iloc[g,2])
             places.append(self.df.iloc[g,4])
             genders.append(self.df.iloc[g,3])
 
-        age_groups = self.ordering(age_groups)
+        age_groups = self.ordering(age_groups)  #Remove duplicates and order them
         genders = self.ordering(genders)
         places = self.ordering(places)
-        users = np.zeros(shape = (len(genders),len(indexes), int(d_indexes/len(genders))))
+        users = np.zeros(shape = (len(genders),len(indexes), int(d_indexes/len(genders))))  #Array used to contain the information in the excel file
 
         #The first index in the excel file is the row while the second is the column
-        for k in range(len(indexes)):
-            years[k] = (self.df.iloc[indexes[k],1])
+        for k in range(len(indexes)):  #Looping through all the years
+            years[k] = float(self.df.iloc[indexes[k],1])
             counter = 0
             index_counter_for_gender = 0
             prev_count = 0
 
-            for j in range(indexes[k], indexes[k]+d_indexes):
+            for j in range(indexes[k], indexes[k]+d_indexes):  #Looping through all the places and age_groups
                 use = self.df.iloc[j,6]
                 if type(use) != type(2):  #Check for NaN, Inf or "Below 5" types. Setting them to 1 to avoid divide by 0 in the future
                     use = 1
@@ -79,12 +81,16 @@ class files(object):
                         counter = prev_count
                         index_counter_for_gender += 1
 
-                users[index_counter_for_gender, k, counter] = use
-                counter += 1
+                users[index_counter_for_gender, k, counter] = use  #Fills in the value from the excel file in the correct index representing gender, year and age group.
+                counter += 1  #Counting down the rows
 
         return years, users, age_groups, places, genders
 
     def ordering(self, array):
+        """
+        Removes duplicates from lists and than sorts them such that the original order is kept
+        Takes a numpy array and return the sorted without duplicates.
+        """
         array1, order = np.unique(array, return_index=True)
         counter = 0
         new_array = np.zeros_like(array1)
@@ -94,16 +100,79 @@ class files(object):
         return new_array[new_array != 'nan']
 
 
-    def files_dict(self, file_name):
+    def files_dict(self, file_name, gender_column = 4, age_group_column = 3, year_column = 2, region_column = 5, sum_column = 6):
         """
         Places all parameters in a single dictonary for the excel file from reseptregisteret.
         Order in the dictionary: Gender -> Year -> Age group -> Place (fylke/region/hele landet).
         """
         os.chdir(self.directory)
 
-        wb = xlrd.open_workbook(file_name, logfile=open(os.devnull, 'w'))  #39.58 sek on test
-        self.df = pd.read_excel(wb, engine='xlrd')
         #self.df = pd.read_excel(io = file_name, sheet = 0)  #38.97 on test
+        if 'csv' in file_name:
+            #For opening csv pandas is quicker, about 9 times as fast.
+            users_dict = {}
+            data = pd.read_csv(file_name)
+            print(data.keys())
+            with open(file_name, newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                keys = []
+                for row in reader:
+                    for key in row.keys():
+                        keys.append(key)
+                    break
+
+                genders, years, age_groups, places = [], [], [], []
+                gender_column -= 1; age_group_column -= 1; year_column -= 1; region_column -= 1; sum_column -= 1
+                for row in reader:
+                    gender = row[keys[gender_column]]
+                    year = float(row[keys[year_column]])
+                    age_group = row[keys[age_group_column]]
+                    place = row[keys[region_column]]
+                    value = row[keys[sum_column]]
+                    if gender not in genders:
+                        genders.append(gender)
+                    if year not in years:
+                        years.append(year)
+                    if age_group not in age_groups:
+                        age_groups.append(age_group)
+                    if place not in places:
+                        places.append(place)
+
+                for gender in genders:  #Looping through the different parameters
+                    users_dict[gender] = {}
+
+                    for year in years:
+                        users_dict[gender][year] = {}
+
+                        for age_group in age_groups:
+                            users_dict[gender][year][age_group] = {}
+
+                            for place in places:
+                                users_dict[gender][year][age_group][place] = 1
+
+            with open(file_name, newline='', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                counter = 0
+                for row in reader:
+                    gender = row[keys[gender_column]]
+                    year = float(row[keys[year_column]])
+                    age_group = row[keys[age_group_column]]
+                    place = row[keys[region_column]]
+                    value = row[keys[sum_column]]
+                    try:
+                        if eval(value) == 0:  #Set the lowest possible value to 1 to avoid division by 0
+                            users_dict[gender][year][age_group][place] = 1
+                        else:
+                            users_dict[gender][year][age_group][place] = eval(value)
+                    except:
+                        pass
+            os.chdir(path)
+            return users_dict
+
+        else:
+            wb = xlrd.open_workbook(file_name, logfile=open(os.devnull, 'w'))  #39.58 sek on test
+            self.df = pd.read_excel(wb, engine='xlrd')
+
 
         os.chdir(path)
 
@@ -131,6 +200,7 @@ class files(object):
                         counter += 1
             counter2 += 1
 
+        os.chdir(path)
         return users_dict
 
     def population_excel(self, file_name, stop_at_90 = True):
@@ -240,6 +310,7 @@ class files(object):
                 j += 1
             i += 1
 
+        os.chdir(path)
         return users_dict
 
 
@@ -276,6 +347,14 @@ class visualization(object):
         self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
         self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())
         self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())
+        print('Valg i \'gender\' kategorien:')
+        print(self.gender_keys)
+        print('Årstall med data:')
+        print(self.year_keys)
+        print('Tilatte aldre:')
+        print(self.age_group_keys)
+        print('Tilatte regioner:')
+        print(self.places)
 
 
     def age_parameters(self, age_start, age_end, age_group_keys = None):
@@ -376,7 +455,7 @@ class visualization(object):
 
 
     def drug_array(self, age_indexes, region, gender):
-        data = np.zeros((len(self.drugs), len(self.year_keys)))
+        data = np.zeros((len(self.drugs), len(self.year_keys)), dtype = np.float)
 
         for i in range(len(self.drugs)):
             for k in range(len(self.year_keys)):
@@ -680,18 +759,27 @@ class visualization(object):
 
 
 if __name__ == "__main__":
+    #opening_test = files('test')
+
     #opening_test = files('Antiepileptika')
-    #opening_test.population_excel('Befolkning.xlsx')
-    test = visualization('Antiepileptika')
-    #test.part1(gender = 'Mann')
+    #test2 = opening_test.files_dict('Antiepileptika.xls')
+
+
+    #time1 = time.time()
+    #test = visualization('Antiepileptika')
+    #time2 = time.time()
+    test2 = visualization('test')
+    #time3 = time.time()
+    #print(time2-time1, time3 - time2)
+    #test2.part1(gender = 'Mann')
     #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
     #test.individual_time('Valproat', gender = 'Mann')
-    test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
-    test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
+    #test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
+    #test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
 
 
 os.chdir(path)
