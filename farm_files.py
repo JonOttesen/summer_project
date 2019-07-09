@@ -7,8 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 import xlrd
-import time
-import statsmodels.api as sm
 import sys
 from matplotlib.animation import FuncAnimation
 import csv
@@ -38,6 +36,7 @@ class files(object):
             if self.df.iloc[i,1] >= 1900:
                 indexes.append(i)
         return indexes
+
 
     def opening(self, file_name):
         """
@@ -86,6 +85,7 @@ class files(object):
 
         return years, users, age_groups, places, genders
 
+
     def ordering(self, array):
         """
         Removes duplicates from lists and than sorts them such that the original order is kept
@@ -107,19 +107,21 @@ class files(object):
         """
         os.chdir(self.directory)
 
-        #self.df = pd.read_excel(io = file_name, sheet = 0)  #38.97 on test
         if 'csv' in file_name:
             #For opening csv pandas is quicker, about 9 times as fast.
             users_dict = {}
             data = pd.read_csv(file_name)
-            print(data.keys())
-            with open(file_name, newline='', encoding='utf-8') as csvfile:
+            keys = data.keys()
+            gender_column -= 1; age_group_column -= 1; year_column -= 1; region_column -= 1; sum_column -= 1
+
+            age_groups = self.ordering(data[keys[age_group_column]])  #Remove duplicates and order them
+            genders = self.ordering(data[keys[gender_column]])
+            places =self.ordering(data[keys[region_column]])
+            years = np.unique(data[keys[year_column]])
+
+
+            """with open(file_name, newline='', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
-                keys = []
-                for row in reader:
-                    for key in row.keys():
-                        keys.append(key)
-                    break
 
                 genders, years, age_groups, places = [], [], [], []
                 gender_column -= 1; age_group_column -= 1; year_column -= 1; region_column -= 1; sum_column -= 1
@@ -136,42 +138,49 @@ class files(object):
                     if age_group not in age_groups:
                         age_groups.append(age_group)
                     if place not in places:
-                        places.append(place)
+                        places.append(place)"""
 
-                for gender in genders:  #Looping through the different parameters
-                    users_dict[gender] = {}
+            for gender in genders:  #Looping through the different parameters
+                users_dict[gender] = {}
 
-                    for year in years:
-                        users_dict[gender][year] = {}
+                for year in years:
+                    users_dict[gender][year] = {}
 
-                        for age_group in age_groups:
-                            users_dict[gender][year][age_group] = {}
+                    for age_group in age_groups:
+                        users_dict[gender][year][age_group] = {}
 
-                            for place in places:
-                                users_dict[gender][year][age_group][place] = 1
+                        for place in places:
+                            users_dict[gender][year][age_group][place] = 1
 
             with open(file_name, newline='', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
-                counter = 0
                 for row in reader:
                     gender = row[keys[gender_column]]
                     year = float(row[keys[year_column]])
                     age_group = row[keys[age_group_column]]
                     place = row[keys[region_column]]
                     value = row[keys[sum_column]]
-                    try:
+                    if value.isdigit():
+                        users_dict[gender][year][age_group][place] = eval(value)
+                    else:
+                        users_dict[gender][year][age_group][place] = 1
+
+
+                    """try:
                         if eval(value) == 0:  #Set the lowest possible value to 1 to avoid division by 0
-                            users_dict[gender][year][age_group][place] = 1
+                            pass
                         else:
                             users_dict[gender][year][age_group][place] = eval(value)
                     except:
-                        pass
+                        pass"""
+
             os.chdir(path)
             return users_dict
 
         else:
             wb = xlrd.open_workbook(file_name, logfile=open(os.devnull, 'w'))  #39.58 sek on test
             self.df = pd.read_excel(wb, engine='xlrd')
+            #self.df = pd.read_excel(io = file_name, sheet = 0)  #38.97 on test
 
 
         os.chdir(path)
@@ -347,14 +356,34 @@ class visualization(object):
         self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
         self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())
         self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())
-        print('Valg i \'gender\' kategorien:')
-        print(self.gender_keys)
-        print('Årstall med data:')
-        print(self.year_keys)
-        print('Tilatte aldre:')
-        print(self.age_group_keys)
-        print('Tilatte regioner:')
-        print(self.places)
+
+
+    def help(self):
+        most_elements = max([len(self.places), len(self.age_group_keys), len(self.gender_keys), len(self.drugs)])
+        print('-'*101)
+        print('|' + 'Tabell av parameterene'.center(99) + '|')
+        print('|' + '-'*99 + '|')
+        print("|{0:24s}|{1:24s}|{2:24s}|{3:24s}|".format('Kjønn', 'Medisiner/medisintyper', 'Aldersgrupper', 'Regioner/steder'))
+        print('|' + '-'*24 + '|' + '-'*24 + '|' + '-'*24 + '|' + '-'*24 + '|')
+        for i in range(most_elements):
+            try:
+                gender = self.gender_keys[i]
+            except:
+                gender = ''
+            try:
+                age = self.age_group_keys[i]
+            except:
+                age = ''
+            try:
+                place = self.places[i]
+            except:
+                place = ''
+            try:
+                drug = self.drugs[i]
+            except:
+                drug = ''
+            print("|{0:24s}|{1:24s}|{2:24s}|{3:24s}|".format(gender, drug, age, place))
+        print('-'*101)
 
 
     def age_parameters(self, age_start, age_end, age_group_keys = None):
@@ -764,20 +793,21 @@ if __name__ == "__main__":
     #opening_test = files('Antiepileptika')
     #test2 = opening_test.files_dict('Antiepileptika.xls')
 
+    #opening_test2 = files('Antiepileptika2')
+    #test = opening_test2.files_dict('Antiepileptika2.csv')
+    #print(test2 == test)
 
-    #time1 = time.time()
+
     #test = visualization('Antiepileptika')
-    #time2 = time.time()
-    test2 = visualization('test')
-    #time3 = time.time()
-    #print(time2-time1, time3 - time2)
+    test2 = visualization('Antiepileptika2')
+
     #test2.part1(gender = 'Mann')
-    #test.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
+    #test2.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
+    #test2.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
-    #test.individual_time('Valproat', gender = 'Mann')
+    test2.individual_time('Valproat', gender = 'Kvinne')
     #test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
     #test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
 
