@@ -10,6 +10,7 @@ import xlrd
 import sys
 from matplotlib.animation import FuncAnimation
 import csv
+import time
 
 warnings.filterwarnings("ignore")
 
@@ -17,35 +18,44 @@ path = os.path.abspath(os.path.dirname(__file__))
 
 class files(object):
     """
+    A class which reads the excel or csv files from reseptregisteret and writes the file into a dictonary.
+    It can also read the excel population file from SSB and place it into a dictonary.
     The functions meant to be called are:
     files_dict for reseptregisteret files
-    population_excel for SSB population data
+    population_excel for SSB population data (must be excel files)
+    To use create a folder containing the data, than create a instance of the class with said name. Than use either "files_dict" or "population_excel" to open the files.
     """
 
     def __init__(self, folder_name):
+        """
+        folder_name is the name of the folder the file/files can be found in
+        """
         self.directory = folder_name
 
 
     def year_indexes(self):
         """
-        Finds the indexes for all rows which contains a year written in i.e non empty
+        Finds the indexes for all rows which contains a year written in i.e non empty for the excel files
         """
         indexes = []
         for i in range(len(self.df.iloc[:])):
-            #print(df.iloc[i,1])
-            if self.df.iloc[i,1] >= 1900:
+            if self.df.iloc[i,1] >= 1900:  #Check to see if the number is above 1900 i.e a year over 1900
                 indexes.append(i)
         return indexes
 
 
     def opening(self, file_name):
         """
-        Returns all the values from the Antall brukere column and all the years
-        Array for Antall brukere (x,y) size where x index represent a year and y index represent a age group.
+        Returns in this order arrays containing:
+        All the years for the dataset
+        The user data with shape (Total amount of different genders, total amount of different years, indexes pr year pr gender).
+        -> The two first indexes selects which gender and years while the last selects the row from the excel file i.e male 2014 and row 14 (index 13) beneath the first entry
+        All possible age gropus (strings) as shown in the excel file nicly orderd in the order shown in the excel file.
+        Genders (strings) nicly orderd in the order shown in the excel file
         """
         indexes = self.year_indexes()
 
-        d_indexes = int(indexes[1]-indexes[0])
+        d_indexes = int(indexes[1]-indexes[0])  #The distance in indexes between when the year changes i.e the amount of indexes used pr year
         years = np.zeros(len(indexes))
         age_groups = []
         places = []
@@ -55,7 +65,7 @@ class files(object):
             places.append(self.df.iloc[g,4])
             genders.append(self.df.iloc[g,3])
 
-        age_groups = self.ordering(age_groups)  #Remove duplicates and order them
+        age_groups = self.ordering(age_groups)  #Remove duplicates and order them in the order of the excel file
         genders = self.ordering(genders)
         places = self.ordering(places)
         users = np.zeros(shape = (len(genders),len(indexes), int(d_indexes/len(genders))))  #Array used to contain the information in the excel file
@@ -104,6 +114,8 @@ class files(object):
         """
         Places all parameters in a single dictonary for the excel file from reseptregisteret.
         Order in the dictionary: Gender -> Year -> Age group -> Place (fylke/region/hele landet).
+        file_name is the name of the file whished read with the filetype ending.
+        The colums are which colums in the cvs file version corresponds the the genders, years etc. Give the column number i.e start counting at 1 not the the index number.
         """
         os.chdir(self.directory)
 
@@ -112,7 +124,7 @@ class files(object):
             users_dict = {}
             data = pd.read_csv(file_name)
             keys = data.keys()
-            gender_column -= 1; age_group_column -= 1; year_column -= 1; region_column -= 1; sum_column -= 1
+            gender_column -= 1; age_group_column -= 1; year_column -= 1; region_column -= 1; sum_column -= 1  #Make sure the index represents the correct column
 
             age_groups = self.ordering(data[keys[age_group_column]])  #Remove duplicates and order them
             genders = self.ordering(data[keys[gender_column]])
@@ -120,7 +132,7 @@ class files(object):
             years = np.unique(data[keys[year_column]])
 
 
-            """with open(file_name, newline='', encoding='utf-8') as csvfile:
+            """with open(file_name, newline='', encoding='utf-8') as csvfile:  #A slover version of the above four lines
                 reader = csv.DictReader(csvfile)
 
                 genders, years, age_groups, places = [], [], [], []
@@ -140,7 +152,7 @@ class files(object):
                     if place not in places:
                         places.append(place)"""
 
-            for gender in genders:  #Looping through the different parameters
+            for gender in genders:  #Looping through the different parameters and creating the correct dictonary
                 users_dict[gender] = {}
 
                 for year in years:
@@ -152,27 +164,15 @@ class files(object):
                         for place in places:
                             users_dict[gender][year][age_group][place] = 1
 
-            with open(file_name, newline='', encoding='utf-8') as csvfile:
+            gender_key, year_key, age_key, place_key, value_key = keys[np.array([gender_column, year_column, age_group_column, region_column, sum_column])]
+            with open(file_name, newline='', encoding='utf-8') as csvfile:  #Filling the dictonary
                 reader = csv.DictReader(csvfile)
                 for row in reader:
-                    gender = row[keys[gender_column]]
-                    year = float(row[keys[year_column]])
-                    age_group = row[keys[age_group_column]]
-                    place = row[keys[region_column]]
-                    value = row[keys[sum_column]]
-                    if value.isdigit():
-                        users_dict[gender][year][age_group][place] = eval(value)
-                    else:
-                        users_dict[gender][year][age_group][place] = 1
 
+                    gender, year, age_group, place, value = row[gender_key], row[year_key], row[age_key], row[place_key], row[value_key]
 
-                    """try:
-                        if eval(value) == 0:  #Set the lowest possible value to 1 to avoid division by 0
-                            pass
-                        else:
-                            users_dict[gender][year][age_group][place] = eval(value)
-                    except:
-                        pass"""
+                    if value.isdigit():  #Check for missing values
+                        users_dict[gender][float(year)][age_group][place] = float(value)
 
             os.chdir(path)
             return users_dict
@@ -212,10 +212,12 @@ class files(object):
         os.chdir(path)
         return users_dict
 
+
     def population_excel(self, file_name, stop_at_90 = True):
         """
         Places all parameters in a single dictonary for the excel file from SSB.
         Order in the dictionary: Gender -> Year -> Age group -> Place (fylke).
+        Takes the filename with the filetype ending and if stop_at_90 = True it will sum up all numbers above 90 and place them in the same category.
         """
         os.chdir(self.directory)
 
@@ -325,6 +327,9 @@ class files(object):
 
 
 class visualization(object):
+    """
+    A class ment to visualize the data from reseptregisteret and SSB in a multitude of graphs and animations.
+    """
 
     def __init__(self, folder_name, stop_at_90 = True):
         self.folder_name = folder_name
@@ -341,52 +346,63 @@ class visualization(object):
             self.p_age_group_keys = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]].keys())
             self.p_places = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]][self.p_age_group_keys[0]].keys())
         except:
+            print('Det eksisterer ikke en fil med navn \'Befolkning.xlsx\' eller \'Befolkning.csv\' i filmappen ' + folder_name)
+            print('Del 3 kan dermed ikke anvendes.')
             pass
 
         self.data = []
         self.drugs = []  #Name of the drugs
         for i in self.filenames:
-            self.drugs.append(i[:-4])  #Removing the .xls ending
+            self.drugs.append(i[:-4])  #Removing the .xls or .csv ending
 
         for filename in self.filenames:
             self.data.append(files(folder_name).files_dict(filename))  #Dictionaries for all the xls files in the folder
 
 
-        self.gender_keys = list(self.data[0].keys())
-        self.year_keys = list(self.data[0][self.gender_keys[0]].keys())
-        self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())
-        self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())
+        self.gender_keys = list(self.data[0].keys())  #The keys for the different genders
+        self.year_keys = list(self.data[0][self.gender_keys[0]].keys())  #The keys for the different years in the data set
+        self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())  #The keys for the different age groups
+        self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())  #The keys for the different regions/locations
 
 
     def help(self):
+        """
+        Prints a table with all the keys for part 1 and part 2 i.e the part without the total population.
+        """
         most_elements = max([len(self.places), len(self.age_group_keys), len(self.gender_keys), len(self.drugs)])
-        print('-'*101)
-        print('|' + 'Tabell av parameterene'.center(99) + '|')
-        print('|' + '-'*99 + '|')
-        print("|{0:24s}|{1:24s}|{2:24s}|{3:24s}|".format('Kjønn', 'Medisiner/medisintyper', 'Aldersgrupper', 'Regioner/steder'))
-        print('|' + '-'*24 + '|' + '-'*24 + '|' + '-'*24 + '|' + '-'*24 + '|')
+        print('-'*109)
+        print('|' + 'Tabell av parameterene, alt innenfor \" og med \" er parameteren'.center(107) + '|')
+        print('|' + '-'*107 + '|')
+        print("|{0:26s}|{1:26s}|{2:26s}|{3:26s}|".format('Kjønn', 'Medisiner/medisintyper', 'Aldersgrupper', 'Regioner/steder'))
+        print('|' + '-'*26 + '|' + '-'*26 + '|' + '-'*26 + '|' + '-'*26 + '|')
         for i in range(most_elements):
             try:
-                gender = self.gender_keys[i]
+                gender = "\"" + self.gender_keys[i] + "\""
             except:
                 gender = ''
             try:
-                age = self.age_group_keys[i]
+                age = "\"" + self.age_group_keys[i] + "\""
             except:
                 age = ''
             try:
-                place = self.places[i]
+                place = "\"" + self.places[i] + "\""
             except:
                 place = ''
             try:
-                drug = self.drugs[i]
+                drug = "\"" + self.drugs[i] + "\""
             except:
                 drug = ''
-            print("|{0:24s}|{1:24s}|{2:24s}|{3:24s}|".format(gender, drug, age, place))
-        print('-'*101)
+            print("|{0:26s}|{1:26s}|{2:26s}|{3:26s}|".format(gender, drug, age, place))
+        print('-'*109)
 
 
     def age_parameters(self, age_start, age_end, age_group_keys = None):
+        """
+        Nothing interesting really,
+        find the indexes corresponding to the correct keys in self.age_group_keys based on the start age and end age.
+        A requirement is that self.age_group_keys starts at 0 and ends at 90+ having all the parameters in-between i.e selecting all age gropus from reseptregisteret.
+        Another requirement is that the age groups are as followed 0-4, 5-9, 10-14 i.e 5 year groups.
+        """
         if age_group_keys == None:
             age_group_keys = self.age_group_keys
         else:
@@ -404,6 +420,11 @@ class visualization(object):
 
 
     def curve_fitting(self, data):
+        """
+        Fits a curve to the given data (1D array): The possible curves are exponential, logarithmic, polynomial, polynomials of negative power and cosine
+        ## TODO: Redo this to work with all the given curve types and try machine learning techniques
+        Returns the fitted function
+        """
         degree = 1
         years = []
         new_data = []
@@ -435,6 +456,14 @@ class visualization(object):
 
 
     def final_function(self, data, f, time):
+        """
+        Uses the function found in curve_fitting and the data points to give a final array consisting of both.
+        It uses the data points when possible, but if the time array consists of years outside of the years in the data it uses the function.
+        data -> the data from reseptregisteret.
+        f -> is array of the fitted function already used on the time array.
+        time -> the time from period_start to period_end in integer steps.
+        returns a array of datapoints used to plot againts the time array.
+        """
         if type(time) == type([1]) or type(time) == type(np.array([1])):
             pass
         else:
@@ -451,6 +480,19 @@ class visualization(object):
 
 
     def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Antall utskrivninger'):
+        """
+        A function used for plotting in a histogram like fashion.
+        It uses both the data given and if necesarry uses the curve_fitting and final_function functions when there is not enough data.
+        data         -> All the data points mathcin the region, desired age and gender. This also includes that of which is not plotted since all data is used to find the best curve fit.
+                        Takes a array of size (number of drugs, total number of years).
+        period_start -> The earliest year the plot starts at. Takes integer values
+        period_end   -> The last year in the plot. Takes integer values
+        drug_list    -> A list of all the drugs plotted. Either a list for multiple drugs plotted or a string for a single drug plotted.
+        age_indexes  -> A list gotten from the function age_indexes.
+        gender       -> The gender the data is for, this is a string.
+        region       -> The region the data is for, this is a string.
+        label        -> Label for for the y-axis
+        """
 
         time = np.linspace(period_start, period_end, period_end-period_start+1)
         bars = len(data)
@@ -484,6 +526,11 @@ class visualization(object):
 
 
     def drug_array(self, age_indexes, region, gender):
+        """
+        Returns an array containing the date from reseptregisteret for the desired ages, regions and genders. The data for every year is returned.
+        Array has the size (number of drugs, total number of years in the reseptregisteret data).
+        The returned array sums upp all contributions from the start age to the end age specified when getting the age_indexes list.
+        """
         data = np.zeros((len(self.drugs), len(self.year_keys)), dtype = np.float)
 
         for i in range(len(self.drugs)):
@@ -494,16 +541,29 @@ class visualization(object):
         return data
 
 
-    def population_array(self, age_indexes, region, gender):
-        data = np.zeros((len(self.p_year_keys)))
+    def population_array(self, age_indexes, region, gender, year_keys = self.year_keys):
+        """
+        Returns an array containing the date from SSB for the desired ages, regions and genders. The data for every year is returned.
+        Array has the size (total number of years in the specified year_keys parameter (often reseptregisteret)).
+        The returned array sums upp all contributions from the start age to the end age specified when getting the age_indexes list.
+        """
+        data = np.zeros((len(year_keys)))
 
-        for k in range(len(self.p_year_keys)):
+        for k in range(len(year_keys)):
             for j in range(len(age_indexes)):
-                data[k] += self.population[gender][self.p_year_keys[k]][self.p_age_group_keys[age_indexes[j]]][region]
+                data[k] += self.population[gender][year_keys[k]][self.p_age_group_keys[age_indexes[j]]][region]
         return data
 
 
     def cake_plot(self, gender, region, data_drugs, data_tot_drugs, year, age_indexes, drug_list):
+        """
+        A simpe cake plot for the specified gender, region, year and age group. These are all strings
+        data_drugs     -> Is the data for all the different drugs plotted in the cake diagram size (number of drugs, total number of years)
+        data_tot_drugs -> Is the data for the total number of users of all the drugs given pluss others size (total number of years)
+        year           -> The integer year the data is gotten from. This can be anything since the data is curvefitted using curve_fitting and finally final_function.
+        age_indexes    -> A list gotten from the function age_indexes.
+        drug_list      -> A list of the drugs plotted, the index for the drug must be the same as in data_drugs.
+        """
 
         if len(age_indexes) > 1:
             alder = self.age_group_keys[age_indexes[0]] + ' til ' + self.age_group_keys[age_indexes[-1]]
@@ -788,8 +848,6 @@ class visualization(object):
 
 
 if __name__ == "__main__":
-    #opening_test = files('test')
-
     #opening_test = files('Antiepileptika')
     #test2 = opening_test.files_dict('Antiepileptika.xls')
 
@@ -799,7 +857,10 @@ if __name__ == "__main__":
 
 
     #test = visualization('Antiepileptika')
-    test2 = visualization('Antiepileptika2')
+    time1 = time.time()
+    test2 = visualization("Antiepileptika2")
+    print(time.time() - time1)
+    test2.help()
 
     #test2.part1(gender = 'Mann')
     #test2.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
@@ -807,7 +868,7 @@ if __name__ == "__main__":
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
     #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
     #test.recommended(ikke_anbefalt = ['Valproat'])
-    test2.individual_time('Valproat', gender = 'Kvinne')
+    #est2.individual_time('Valproat', gender = 'Kvinne')
     #test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
     #test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
 
