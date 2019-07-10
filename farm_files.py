@@ -479,7 +479,7 @@ class visualization(object):
         return np.array(final)
 
 
-    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Antall utskrivninger'):
+    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Antall utskrivninger', file_name = True):
         """
         A function used for plotting in a histogram like fashion.
         It uses both the data given and if necesarry uses the curve_fitting and final_function functions when there is not enough data.
@@ -503,6 +503,7 @@ class visualization(object):
         else:
             alder = self.age_group_keys[age_indexes[0]]
 
+        plt.figure(figsize = [12, 4.8])
         if type(data[0]) == type(np.array([1])):
             for i in range(len(data)):
                 func = self.curve_fitting(np.log(data[i]))
@@ -510,17 +511,20 @@ class visualization(object):
                 #plt.plot(time, np.exp(func(time)))
                 plt.legend()
                 plt.title(gender + ' i ' + region + ' alder ' + alder)
-            plt.xlabel('År')
-            plt.ylabel(label)
-            plt.show()
         else:
             func = self.curve_fitting(np.log(data))
             plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = drug_list)
             plt.legend()
             plt.title(gender + ' i ' + region + ' alder ' + alder)
-            plt.xlabel('År')
-            plt.ylabel(label)
-            plt.show()
+
+        plt.xlabel('År')
+        plt.ylabel(label)
+
+        if file_name:
+            pass
+        else:
+            plt.savefig(file_name+'.png')
+        plt.show()
 
         return None
 
@@ -541,12 +545,17 @@ class visualization(object):
         return data
 
 
-    def population_array(self, age_indexes, region, gender, year_keys = self.year_keys):
+    def population_array(self, age_indexes, region, gender, year_keys = True):
         """
         Returns an array containing the date from SSB for the desired ages, regions and genders. The data for every year is returned.
         Array has the size (total number of years in the specified year_keys parameter (often reseptregisteret)).
         The returned array sums upp all contributions from the start age to the end age specified when getting the age_indexes list.
         """
+        if year_keys:
+            year_keys = self.year_keys
+        else:
+            pass
+
         data = np.zeros((len(year_keys)))
 
         for k in range(len(year_keys)):
@@ -584,6 +593,7 @@ class visualization(object):
         x.append(1-np.sum(np.array(x)))
         drug_list.append('Resterende '+ self.folder_name)
 
+        plt.figure(figsize = [12, 4.8])
         plt.pie(x, explode = explosion, labels = drug_list, autopct='%1.1f%%', shadow=True, startangle=90)
         plt.title(gender + ' i ' + region + ' alder ' + alder + ' år ' + str(year))
         plt.show()
@@ -591,7 +601,34 @@ class visualization(object):
         return None
 
 
-    def part1(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+    def probability(self, probs):
+
+        if np.sum(probs)>1:
+            probs /= 100
+            print('Do not use probability in %, this is now fixed but for furture reference')
+        else:
+            pass
+
+        tot_prob = probs[0]
+        for i in range(1, len(probs)):
+            tot_prob += probs[i] + probs[i]*probs[i-1]
+
+        return tot_prob
+
+
+    def generelt_medisinforbruk(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False):
+        """
+        Gives a bar plot of the medical use in Norway based on all the data in the folder and the specified parameters. The plot can either be of ratios or total use.
+        The plotted data is for the chosen gender in a specific region for a specific age group.
+        gender       -> The gender (string) must be the same as the string given in the help function.
+        region       -> The region (string) must be the same as the string given in the help function.
+        age_start    -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end      -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        period_start -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
+        period_end   -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
+                        period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
+        ratio        -> Either True or something else and chooses whether to plot the ratio or total use.
+        """
 
         age_indexes = self.age_parameters(age_start, age_end)
 
@@ -600,15 +637,29 @@ class visualization(object):
         med_type_index = self.drugs.index(self.folder_name)
         total_use = np.copy(data[med_type_index])
         data_drugs = np.delete(data, med_type_index, 0)
-        ratio = data_drugs/total_use
+        ratio_data = data_drugs/total_use
         ratio_list = self.drugs[:]
         del ratio_list[med_type_index]
+        if ratio:
+            self.part1_plotting(ratio_data, period_start, period_end, ratio_list, age_indexes, gender, region, label = 'Ratio')
+        else:
+            self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region)
 
-        self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region)
-        self.part1_plotting(ratio, period_start, period_end, ratio_list, age_indexes, gender, region, label = 'Ratio')
 
-
-    def individual(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018):
+    def individuelt_medisinforbruk(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False):
+        """
+        Gives a bar plot of the medical use for a specific medicine in Norway based on the data in the folder and for the specified parameters. The plot can either be of ratios or total use.
+        The plotted data is for the chosen gender in a specific region for a specific age group.
+        drug         -> The medicine the plot is for (string). The string must be exactly the same as the name of the datafile in the folder without the .xls or .csv ending.
+        gender       -> The gender (string) must be the same as the string given in the help function.
+        region       -> The region (string) must be the same as the string given in the help function.
+        age_start    -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end      -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        period_start -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
+        period_end   -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
+                        period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
+        ratio        -> Either True or something else and chooses whether to plot the ratio or total use.
+        """
 
         age_indexes = self.age_parameters(age_start, age_end)
         med_index = self.drugs.index(drug)
@@ -618,13 +669,30 @@ class visualization(object):
 
         total_use = np.copy(data[med_type_index])
         data_drugs = np.delete(data, med_type_index, 0)
-        ratio = data/total_use
+        ratio_data = data/total_use
 
-        self.part1_plotting(data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
-        self.part1_plotting(ratio[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region, label = 'Ratio')
+        if ratio:
+            self.part1_plotting(ratio_data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region, label = 'Ratio')
+        else:
+            self.part1_plotting(data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region)
 
 
-    def recommended(self, anbefalt = None, ikke_anbefalt = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 1995, period_end = 2030):
+    def forhold_medisin(self, anbefalt = None, ikke_anbefalt = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 1995, period_end = 2030):
+        """
+        Gives a bar plot of the ratio (recommended medicine)/(not recommended medicine) for the specified medicine based on the data in the folder and for the specified parameters.
+        The plotted data is for the chosen gender in a specific region for a specific age group.
+        anbefalt      -> The recommended medicine or medicines, if specified the ikke_anbefalt parameter MUST NOT be specified
+                         The parameter takes a string or list of strings of the recommended medicines.
+        ikke_anbefalt -> The not recommended medicine or medicines, if specified the anbefalt parameter MUST NOT be specified
+                         The parameter takes a string or list of strings of the not recommended medicines.
+        gender        -> The gender (string) must be the same as the string given in the help function.
+        region        -> The region (string) must be the same as the string given in the help function.
+        age_start     -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end       -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        period_start  -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
+        period_end    -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
+                         period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
+        """
 
         if anbefalt == ikke_anbefalt:
             print('Du må spesisere anbefalt eller ikke anbefalt medisin')
@@ -694,7 +762,16 @@ class visualization(object):
         return None
 
 
-    def cake(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, year = 2004):
+    def kake_medisinforbruk(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, year = 2004):
+        """
+        Gives a cake plot of the ratios medicine/(medicine group) for all the medicines in the data folder.
+        The plotted data is for the chosen gender in a specific region for a specific age group.
+        gender        -> The gender (string) must be the same as the string given in the help function.
+        region        -> The region (string) must be the same as the string given in the help function.
+        age_start     -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end       -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        year          -> The year the cake plot is for which is an integer from 0 -> infinity but it's recommended to stay within +- 10 years of the actual data.
+        """
 
         age_indexes = self.age_parameters(age_start, age_end)
         med_type_index = self.drugs.index(self.folder_name)
@@ -709,7 +786,14 @@ class visualization(object):
         self.cake_plot(gender, region, data_drugs, total_use, year, age_indexes, drug_list)
 
 
-    def individual_time(self, drug, gender = 'Kvinne', region = 'Hele landet', ratio = False):
+    def medisinforbruk_tidsutviling(self, drug, gender = 'Kvinne', region = 'Hele landet', ratio = False):
+        """
+        An animation of the time evolution of either the ratio or total number of users of a specific medicine. The ratio is the medicine/(medicine type)
+        drug    -> The name of the medicine as given in the data folder but whithout the .csv or .xls ending.
+        gender  -> The gender (string) must be the same as the string given in the help function.
+        region  -> The region (string) must be the same as the string given in the help function.
+        ratio   -> Either True for ratio or something else for no ratio. It plots the ratio of medicine/(medicine type).
+        """
 
         age_indexes = self.age_parameters(0, 100)
         med_index = self.drugs.index(drug)
@@ -774,22 +858,21 @@ class visualization(object):
             return ani.to_html5_video()
         # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
-    def probability(self, probs):
-
-        if np.sum(probs)>1:
-            probs /= 100
-            print('Do not use probability in %, this is now fixed but for furture reference')
-        else:
-            pass
-
-        tot_prob = probs[0]
-        for i in range(1, len(probs)):
-            tot_prob += probs[i] + probs[i]*probs[i-1]
-
-        return tot_prob
-
-
-    def part3(self, prevalens, sykdom = 'Epilepsi', gender = 'Mann', region = 'Hele landet', age_start = 0, age_end= 100, period_start = 2004, period_end = 2030):
+    def medisiner_og_befolkning(self, prevalens, sykdom = 'Epilepsi', gender = 'Mann', region = 'Hele landet', age_start = 0, age_end= 100, period_start = 2004, period_end = 2030):
+        """
+        Returns a bar plot of the number of users for the different medicines and medicine type given in the data folder with the number of people having a specified disease or diseases.
+        The data for the diseases is based of the probability of having said disease and the number of inhabitants gotten from SSB.
+        prevalens     -> The probability for a disease or diseases, can be either a number or a list of numbers all in probability % not fractions.
+                         For multiple prevalens it uses regular probability calcualtions see the probability function.
+        sykdom        -> Might drop ## TODO: see what to do with this one.
+        gender        -> The gender (string) must be the same as the string given in the help function.
+        region        -> The region (string) must be the same as the string given in the help function.
+        age_start     -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end       -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        period_start  -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
+        period_end    -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
+                         period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
+        """
 
         if type(prevalens) == type([]):
             prevalens = self.probability(np.array(prevalens)/100)
@@ -816,7 +899,21 @@ class visualization(object):
         self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = 'Antall personer')
 
 
-    def individual_population(self, prevalens, drug = 'Valproat', gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True):
+    def medisiner_og_befolkning(self, prevalens, drug = 'Valproat', gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True):
+        """
+        Returns a bar plot of either the ratio using a medicine/(number of people having the disease) or the number of people having the disease and the number of people using the medicine.
+        prevalens     -> The probability for a disease or diseases, can be either a number or a list of numbers all in probability % not fractions.
+                         For multiple prevalens it uses regular probability calcualtions see the probability function.
+        drug          -> The medicine the plot is for (string) not using the .csv or .xls endings.
+        gender        -> The gender (string) must be the same as the string given in the help function.
+        region        -> The region (string) must be the same as the string given in the help function.
+        age_start     -> The yougest age the data is chosen from (int number from 0 -> age_end)
+        age_end       -> The oldest age the data is chosen from (int number from age_start -> infinity)
+        period_start  -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
+        period_end    -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
+                         period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
+        """
+
 
         if type(prevalens) == type([]):
             prevalens = self.probability(np.array(prevalens)/100)
@@ -858,19 +955,7 @@ if __name__ == "__main__":
 
     #test = visualization('Antiepileptika')
     time1 = time.time()
-    test2 = visualization("Antiepileptika2")
-    print(time.time() - time1)
-    test2.help()
-
-    #test2.part1(gender = 'Mann')
-    #test2.part1(region='Hele landet', age_start = 15, age_end = 49, period_start = 1980, period_end = 2050)
-    #test2.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 20, age_end = 35)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49)
-    #test.individual('Valproat', period_start = 2004, period_end = 2018, age_start = 15, age_end = 49, gender = 'Mann')
-    #test.recommended(ikke_anbefalt = ['Valproat'])
-    #est2.individual_time('Valproat', gender = 'Kvinne')
-    #test.part3(prevalens = 2.5, gender = 'Kvinne', age_start = 15, age_end = 49, period_start = 2004, period_end = 2018)
-    #test.individual_population(prevalens = [2.5, 0.7], gender = 'Kvinne', region = 'Finnmark', drug = 'Antiepileptika')
+    test2 = visualization("Antiepileptika")
 
 
 os.chdir(path)
