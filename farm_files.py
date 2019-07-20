@@ -372,7 +372,11 @@ class visualization(object):
         self.age_group_keys = list(self.data[0][self.gender_keys[0]][self.year_keys[0]].keys())  #The keys for the different age groups
         self.places = list(self.data[0][self.gender_keys[0]][self.year_keys[0]][self.age_group_keys[0]].keys())  #The keys for the different regions/locations
 
-        if folder_name + '.csv' in self.filenames or folder_name + '.xls' in self.filenames:
+        check = False
+        for name in self.filenames:
+            if folder_name in name:
+                check = True
+        if check:
             self.med_type_index = self.drugs.index(self.folder_name)
         else:
             self.med_type_index = 'Not given'
@@ -437,40 +441,57 @@ class visualization(object):
         return age_indexes
 
 
-    def curve_fitting(self, data):
+    def curve_fitting(self, data, time):
         """
         Fits a curve to the given data (1D array): The possible curves are exponential, logarithmic, polynomial, polynomials of negative power and cosine
         ## TODO: Redo this to work with all the given curve types and try machine learning techniques
         Returns the fitted function
         """
-        degree = 1
-        years = []
-        new_data = []
+        years = np.array(self.year_keys)
 
-        years.append(self.year_keys[0]-60)
-        years.append(self.year_keys[0]-50)
-        for i in self.year_keys:
-            years.append(i)
-        years.append(self.year_keys[-1]+60)
-        years.append(self.year_keys[-1]+70)
+        if time[0] in years and time[-1] in years:
+            return None
 
-        new_data.append(0.01)
-        new_data.append(0.1)
-        for i in data:
-            new_data.append(i)
-        new_data.append(0.1)
-        new_data.append(0.01)
-        data = np.array(new_data)
+        linear_func = np.poly1d(np.polyfit(years, data, 1))
 
-        z_lower = np.polyfit(years, data, 2)
-        f_best_fit = np.poly1d(z_lower)
-        for deg in [2,4,6,8,10]:
-            z_higher = np.polyfit(years, data, deg)
-            f_higher = np.poly1d(z_higher)
-            if np.sum((f_higher(years[2:-2]) - data[2:-2])**2) <= np.sum((f_best_fit(years[2:-2]) - data[2:-2])**2):
-                degree = deg
-                f_best_fit = f_higher
-        return f_best_fit
+        linear_exp1D = np.poly1d(np.polyfit(years, np.log(data), 1))  #Remember to np.exp np.exp(linear_exp(data))
+
+        def func(x, a, b, c):
+            return a*np.exp(-((x-b)/c)**2)
+
+        a = np.linspace(1*np.max(data), 2*np.max(data), 21)
+        b = np.linspace(years[0] - 12, years[-1] + 12, 24 + (years[-1] - years[0]) + 1)
+        c = np.linspace(0.1, 100, 100)
+
+        X = np.array(np.meshgrid(a,b,c)).T.reshape(-1,3)
+
+        test = func(years, X[0,0], X[0,1], X[0,2])
+        least_squares = np.sum((test-data)**2)
+        a, b, c = X[0,0], X[0,1], X[0,2]
+
+        for i, j, k in X:
+            test = func(years, i, j, k)
+            ls = np.sum((test-data)**2)
+            if ls < least_squares:
+                least_squares = ls
+                a, b, c = i, j, k
+
+        combs_1 = np.linspace(1, 10, 21)  #Starts at 1 to avoid division by zero
+        combs_2 = np.linspace(0, 5, 12)
+        lincombs = np.array(np.meshgrid(combs_1,combs_2,combs_2)).T.reshape(-1,3)
+        least_squares = 1e20
+        lin_weight = 4
+
+        for i, j, k in lincombs:
+            f_new = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(years) + j*np.exp(linear_exp1D(years)) + k*func(years, a, b, c))
+            ls = np.sum((f_new - data)**2)
+            if least_squares > ls:
+                least_squares = ls
+                f = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(time) + j*np.exp(linear_exp1D(time)) + k*func(time, a, b, c))
+                weights = [i,j,k]
+        #print(weights)
+
+        return f
 
 
     def final_function(self, data, f, time):
@@ -524,14 +545,14 @@ class visualization(object):
         plt.figure(figsize = [12, 4.8])
         if type(data[0]) == type(np.array([1])):
             for i in range(len(data)):
-                func = self.curve_fitting(np.log(data[i]))
-                plt.bar(time-0.4+i*offset, self.final_function(data[i], np.exp(func(time)), time), width = offset, label = drug_list[i])
+                func = self.curve_fitting(data[i], time)
+                plt.bar(time-0.4+i*offset, self.final_function(data[i], func, time), width = offset, label = drug_list[i])  ## TODO: Make sure there is no curve fitting when period_start and period_end is in self.year_keys
                 #plt.plot(time, np.exp(func(time)))
                 plt.legend()
                 plt.title(gender + ' i ' + region + ' alder ' + alder)
         else:
-            func = self.curve_fitting(np.log(data))
-            plt.bar(time, self.final_function(data, np.exp(func(time)), time), label = drug_list)
+            func = self.curve_fitting(data, time = time)
+            plt.bar(time, self.final_function(data, func, time), label = drug_list)
             plt.legend()
             plt.title(gender + ' i ' + region + ' alder ' + alder)
 
@@ -600,14 +621,14 @@ class visualization(object):
         else:
             alder = self.age_group_keys[age_indexes[0]]
 
-        func = self.curve_fitting(np.log(data_tot_drugs))
-        func_value = self.final_function(data_tot_drugs, np.exp(func(year)), year)
+        func = self.curve_fitting(data_tot_drugs)
+        func_value = self.final_function(data_tot_drugs, func(year), year)
         x = []
         explosion = []
 
         for i in range(len(data_drugs)):
-            func = self.curve_fitting(np.log(data_drugs[i]))
-            x.append(self.final_function(data_drugs[i], np.exp(func(year)), year)/func_value)
+            func = self.curve_fitting(data_drugs[i])
+            x.append(self.final_function(data_drugs[i], func(year), year)/func_value)
             explosion.append(0.05)
 
         if self.med_type_index == 'Not given':
@@ -855,13 +876,14 @@ class visualization(object):
         self.cake_plot(gender, region, data_drugs, total_use, year, age_indexes, drug_list, save_fig = save_fig)
 
 
-    def medisinforbruk_tidsutviling(self, drug, gender = 'Kvinne', region = 'Hele landet', ratio = False):
+    def medisinforbruk_tidsutviling(self, drug, gender = 'Kvinne', region = 'Hele landet', ratio = False, year = False, save_fig = False):
         """
         An animation of the time evolution of either the ratio or total number of users of a specific medicine. The ratio is the medicine/(medicine type)
         drug    -> The name of the medicine as given in the data folder but whithout the .csv or .xls ending.
         gender  -> The gender (string) must be the same as the string given in the help function.
         region  -> The region (string) must be the same as the string given in the help function.
         ratio   -> Either True for ratio or something else for no ratio. It plots the ratio of medicine/(medicine type).
+        year    -> A specific year to see the plot instead of a animation
         """
 
         age_indexes = self.age_parameters(0, 100)
@@ -873,8 +895,8 @@ class visualization(object):
         index = 0
         for k in self.age_group_keys:
             for i in range(len(self.year_keys)):
-                year = self.year_keys[i]
-                data[index][i] = med_dict[gender][year][k][region]
+                year_index = self.year_keys[i]
+                data[index][i] = med_dict[gender][year_index][k][region]
             index += 1
 
         if ratio:
@@ -884,8 +906,8 @@ class visualization(object):
 
             for k in self.age_group_keys:
                 for i in range(len(self.year_keys)):
-                    year = self.year_keys[i]
-                    data_tot[index][i] = med_dict2[gender][year][k][region]
+                    year_index = self.year_keys[i]
+                    data_tot[index][i] = med_dict2[gender][year_index][k][region]
                 index += 1
 
             f = interpolate.interp1d(self.year_keys, data/data_tot, fill_value='extrapolate')
@@ -915,6 +937,22 @@ class visualization(object):
             ln.set_data(x, f(frame))
             ax.set_title('Medisin for %s i %s: %s i år %.2f' %(gender, region, drug, frame))
             return ln,
+
+        if year != False:
+            if str(year).isdigit() == False:
+                print('The \'year\' parameter must be a number not', year)
+            else:
+                init()
+                update(year)
+                try:
+                    plt.savefig(save_fig)
+                except:
+                    plt.savefig(save_fig + '.png')
+                else:
+                    pass
+
+                plt.show()
+            return None
 
         try:
             __IPYTHON__
@@ -1010,15 +1048,20 @@ class visualization(object):
 
 
 
+
+
+
+
 if __name__ == "__main__":
     test = visualization('Antiepileptika')
     #test.tabell()
-    #test.generelt_medisinforbruk()
-    #test.individuelt_medisinforbruk(drug = 'Valproat')
+    #test.generelt_medisinforbruk(period_start = 2004, period_end = 2018)
+    #test.individuelt_medisinforbruk(drug = 'Valproat', ratio = False, period_start = 2000, period_end = 2025)
     #test.forhold_medisin(ikke_anbefalt = 'Valproat')
     #test.kake_medisinforbruk()
-    #test.medisinforbruk_tidsutviling(drug = "Lamotrigin", gender = 'Mann', region = 'Østfold')
-    test.medisiner_og_befolkning2(prevalens = 2.5)
+    #test.medisinforbruk_tidsutviling(drug = "Valproat", gender = 'Kvinne', region = 'Hele landet')
+    #test.medisiner_og_befolkning2(prevalens = 2.5)
+
 
 os.chdir(path)
 
