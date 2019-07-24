@@ -355,6 +355,15 @@ class visualization(object):
             self.p_age_group_keys = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]].keys())
             self.p_places = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]][self.p_age_group_keys[0]].keys())
         except:
+            pass
+        try:
+            self.filenames.remove('Befolkning.csv')
+            self.population = files(folder_name).files_dict('Befolkning.csv')
+            self.p_gender_keys = list(self.population.keys())
+            self.p_year_keys = list(self.population[self.p_gender_keys[0]].keys())
+            self.p_age_group_keys = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]].keys())
+            self.p_places = list(self.population[self.p_gender_keys[0]][self.p_year_keys[0]][self.p_age_group_keys[0]].keys())
+        except:
             print('Det eksisterer ikke en fil med navn \'Befolkning.xlsx\' eller \'Befolkning.csv\' i filmappen ' + folder_name)
             print('Funksjonene: medisiner_og_befolkning og medisiner_og_befolkning2 kan dermed ikke anvendes')
             pass
@@ -415,7 +424,18 @@ class visualization(object):
             except:
                 drug = ''
             print("|{0:26s}|{1:26s}|{2:26s}|{3:26s}|".format(gender, drug, age, place))
-        print('-'*109)
+
+        if len(str(self.year_keys)[1:-1]) <= 107:
+            string = '|' + str(self.year_keys)[1:-1] + ' '*(int(107-len(str(self.year_keys)[1:-1]))) + '|'
+            print('|' + '-'*107 + '|')
+            print('|' + 'Årstall med datapunkter:'.center(107) + '|')
+            print('|' + '-'*107 + '|')
+            print(string)
+            print('-'*109)
+        else:
+            print('-'*(109))
+            print('Årstall med datapunkter:')
+            print(str(self.year_keys)[1:-1])
 
 
     def age_parameters(self, age_start, age_end, age_group_keys = None):
@@ -978,7 +998,7 @@ class visualization(object):
         period_start  -> The earliest year in the plot (int number from 0 -> infinity) should be chosen somewhat close to the actual datapoints
         period_end    -> The last year in the plot (int number from period_start -> infinity) should be chosen somewhat close to the actual datapoints
                          period_start and period_end recommended to stay within +- 10 years of the earliest and latest data point from reseptregisteret.
-        save_fig     -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
+        save_fig      -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
         """
 
         if type(prevalens) == type([]):
@@ -991,9 +1011,12 @@ class visualization(object):
         data = self.drug_array(age_indexes, region, gender)
 
         if region == 'Hele landet':
-            p_data = self.population_array(age_indexes, self.p_places[0], gender)
-            for k in range(1,len(self.p_places)):
-                p_data += self.population_array(age_indexes, self.p_places[k], gender)
+            if 'Hele landet' in self.p_places:
+                p_data = self.population_array(age_indexes, region, gender)
+            else:  #If the data is from SSB and not having the variable Hele landet
+                p_data = self.population_array(age_indexes, self.p_places[0], gender)
+                for k in range(1,len(self.p_places)):
+                    p_data += self.population_array(age_indexes, self.p_places[k], gender)
         else:
             p_data = self.population_array(age_indexes, region, gender)
 
@@ -1053,7 +1076,7 @@ class visualization(object):
 
 
 if __name__ == "__main__":
-    test = visualization('Antiepileptika')
+    #test = visualization('Antiepileptika')
     #test.tabell()
     #test.generelt_medisinforbruk(period_start = 2004, period_end = 2018)
     #test.individuelt_medisinforbruk(drug = 'Valproat', ratio = False, period_start = 2000, period_end = 2025)
@@ -1061,6 +1084,7 @@ if __name__ == "__main__":
     #test.kake_medisinforbruk()
     #test.medisinforbruk_tidsutviling(drug = "Valproat", gender = 'Kvinne', region = 'Hele landet')
     #test.medisiner_og_befolkning2(prevalens = 2.5)
+    pass
 
 
 os.chdir(path)
