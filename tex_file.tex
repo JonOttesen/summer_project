@@ -13,6 +13,8 @@
 \usepackage{tikz}
 \usepackage{CJKutf8}
 \usepackage[bottom]{footmisc}   % Place a footnote in an environment in the bottom of the page
+\usepackage{array}
+\usepackage{makecell}
 
 
 % Document formatting
@@ -180,7 +182,7 @@ Det er ikke nødvendig med ett datasett navngitt etter legemiddeltypen men uten 
 	\caption{Et flowchart om nedlasting av filer fra reseptregisteret.}
 \end{figure}
 
-\section*{Anvendelse} \label{sec:03}
+\section{Anvendelse} \label{sec:03}
 
 Før vi kan stare å anvende programmet er det først nødvendig å åpne Jupyter Notebook. Dette gjøres ved å først åpne kommandovinduet for så å navigere seg frem til mappen med programmet \textit{farm\_files.py}. Dette gjøres med bruk av kommandoen \textit{cd} (change directory) og med 'the path of the folder'\footnote{I mangel på en bra norsk oversettelse.}/miljøet der filen er lagret. Når kommandovinduet er navigert seg til filmappen med programmet skriver man inn 'Jupyter Notebook' og den åpnes. I jupyter notebook lager man så en ny notebook under \textit{new \(\rightarrow\) Python 3}.
 
@@ -196,14 +198,63 @@ respir = visualization('R')  #Ett tilfelle knyttet til mappen om R fra kategorie
 \end{lstlisting}
 Datasettene tilknyttet til R er \textbf{KUN} ment for å illustrere hvordan programmet fungerer.
 
-Nå er programmet ferdig initialisert og resten av denne seksjonen vil omhandle kjøreeksempler av programmet. Før dette vil jeg rette oppmerksomheten din til tabell ... hvor alle funksjonen i programmet er listet opp samt argumentene de godtar. Videre i tabell .... er alle variablene listet opp med hvilke input som godtas.
+Nå er programmet ferdig initialisert og resten av denne seksjonen vil omhandle kjøreeksempler av programmet. Før dette vil jeg rette oppmerksomheten din til tabell ... hvor alle metodene i programmet er listet opp samt argumentene de godtar. Videre i tabell .... er alle variablene listet opp med hvilke input som godtas.
 
-Vi starter med etter min mening den funksjonen {\color{blue}tabell} som bør blir kalt først.
+Vi starter med etter min mening den metoden {\color{blue}tabell} som bør blir kalt først.
 \begin{lstlisting}
 antiep.tabell()  #Gir en tabell av variablene for kjønn, legemidler og steder i for Antiepileptika.
 respir.tabell()  #Gir en tabell av variablene for kjønn, legemidler og steder i for R.
 \end{lstlisting}
 Denne er nyttig spesielt siden man kan kopiere variablene og se hvilke variabler som er tilgjengelig. 
+
+Den neste metoden er {\color{blue}medisinforbruk} som gir et søylediagram av måletallene (oftest 'Antall brukere') for alle datasettene i hele filmappen. Den kan også gi forholdet legemiddel/legemiddeltype for alle filene i datasettet (unntatt datasettet for legemiddeltypen).
+\begin{lstlisting}
+antiep.medisinforbruk(gender = 'Mann', region = 'Helseregion Midt-Norge', age_start = 9, age_end= 20, period_start = 1955, period_end = 2019)  #Et eksempel der antallet brukere plottes.
+respir.medisinforbruk(gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True)  #Et eksempel med utregning av forholdet mellom legemiddeltypen/legemiddelet.
+\end{lstlisting}
+Den neste metoden er {\color{blue}medisinforbruk\_i} og er tilnærmet lik den forrige, men her plottes kun en spesifiserte legemidler.
+\begin{lstlisting}
+antiep.medisinforbruk(drug = 'Valproat', gender = 'Kvinne', region = 'Østfold', age_start = 25, age_end= 92, period_start = 2009, period_end = 2015, ratio = True)
+respir.medisinforbruk(drug = ['R01', 'R02'], gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018)  #Legg merke til at når flere alternativer velger må de lagres i en liste.
+\end{lstlisting}
+Den neste metoden er {\color{blue}forhold\_medisin} som plotter forholdet mellom valgte legemidler. Legg merke til at jeg ikke har spesifisert kjønn, alder, region eller årstall. Programmet bruker istedenfor standardverdiene som er spesifisert i tabell ...
+\begin{lstlisting}
+antiep.forhold_medisin(teller = ['Lamotrigin', 'Levetiracetam', 'Oxkarbazepin'], nevner = 'Valproat')  #Her brukes alle standardverdiene
+respir.forhold_medisin(teller = ['R01', 'R02'], nevner = ['R03', 'R05'], gender = 'Mann')  #Her endres kun variabelen 'gener' resten av parameterne er gitt av standardverdiene.
+\end{lstlisting}
+Den neste metoden er {\color{blue}kake\_medisinforbruk} som plotter et sektordiagram av alle datasettene i filmappen. I denne metode må kun ett årstall spesifiseres i motsetning til de andre metodene.
+\begin{lstlisting}
+antiep.kake_medisinforbruk(year = 2015, region = 'Oslo')  #Sektordiagram for 2015 i Oslo, resten av verdiene er standard
+respir.kake_medisinforbruk(year = 2020, save_fig = 'eksempel')  #Sektordiagram for 2020, resten er standardverdier og plottet lagres som en png fil med navnet eksempel.png
+\end{lstlisting}
+Den neste metoden er {\color{blue}medisinforbruk\_tidsutviling} som enten viser en video eller gir ett plott med datapunkter. Ett par bemerkninger angående videovisningen: for at animasjonen skal fungere kan kun koden tilhørende animasjonen være i en cellen, i cellen til animasjonen vil det også være ett plott som bare må ignoreres\footnote{Jeg fant ikke ut hvordan man fjerner den.}.
+\begin{lstlisting}
+HTML(antiep.medisinforbruk_tidsutviling(drug = 'Valproat'))  #Merk at for at videoen skal vises i jupyter krves det bruk av pakken HTML som ble importert i starten av jupyter.
+\end{lstlisting}
+\begin{lstlisting}
+respir.medisinforbruk_tidsutviling(drug = 'R01', year = 2018, ratio = True)  #For stillbilder må argumentet 'year' brukes, ved stillbilder skal ikke HTML brukes.
+\end{lstlisting}
+Den nest siste metoden er {\color{blue}medisiner\_og\_befolkning} og her sammenlignes medisinbruken med antall sykdomstilfeller basert på befolkningstallene og prevalens i prosent.
+\begin{lstlisting}
+antiep.medisiner_og_befolkning(prevalens = 2.5, sykdom = 'Epilepsi', age_start = 25)  #Merk at prevalensen gis i prosent.
+respir.medisiner_og_befolkning(prevalens = [2.5, 1.5], save_fig = 'eksempel2')  #Hvis legemiddelet gjelder for 2 eller flere sykdommer gis prevalensen som en liste av prosenter.
+\end{lstlisting}
+Den siste metoden er {\color{blue}medisiner\_og\_befolkning2}\footnote{Jeg klarte helt ærlig ikke å finne på et bedre navn.} og er nesten helt lik den forrige metoden men her på ett mer individuelt nivå.
+\begin{lstlisting}
+antiep.medisiner_og_befolkning2(prevalens = 2.5, drug = ['Valproat', 'Lamotrigin'], ratio = True, label = 'Noe greier')  #Forholdet som nå vises er brukere av det spesifiserte legemiddelet over antall med en sykdom basert på prevalensen og befolkningsdataene.
+respir.medisiner_og_befolkning2(prevalens = [2.5, 1.5], drug = 'R05', gender = 'Mann')
+\end{lstlisting}
+
+\subsection{Metoder, argumenter og beskrivelse}
+
+
+\begin{table}[H]
+\begin{tabular}{c|c|c|c}
+Metode & Argumenter & Beskrivelse & Merk\\ \hline
+\texttt{\color{green}visualization} & \texttt{\color{red}folder\_name}\texttt{\color{red}plot\_type} & blalala & blablala\\
+ & \texttt{\color{red}plot\_type} &  & \\ \hline
+\end{tabular}
+\end{table}
 
 
 

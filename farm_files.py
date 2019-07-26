@@ -392,8 +392,7 @@ class visualization(object):
             print('Det eksisterer ingen ' + folder_name + '.csv/.xls fil i mappen.' + folder_name)
             print('Flere funksjonaliteter vil dermed ikke fungere, disse er:')
             print('Ratio delen av: generelt_medisinforbruk, individuelt_medisinforbruk og medisinforbruk_tidsutviling.')
-            print('Metoden kake_medisinforbruk vil nå kun vise fordelingen av medisinene som om sommen av bruken var hele forbruket.')
-
+            print('Metoden kake_medisinforbruk vil nå kun vise fordelingen av medisinene som om summen av bruken var hele forbruket.')
 
 
     def tabell(self):
@@ -438,6 +437,21 @@ class visualization(object):
             print(str(self.year_keys)[1:-1])
 
 
+    def probability(self, probs):
+
+        if np.sum(probs)>1:
+            probs /= 100
+            print('Do not use probability in %, this is now fixed but for furture reference')
+        else:
+            pass
+
+        tot_prob = probs[0]
+        for i in range(1, len(probs)):
+            tot_prob += probs[i] + probs[i]*probs[i-1]
+
+        return tot_prob
+
+
     def age_parameters(self, age_start, age_end, age_group_keys = None):
         """
         Nothing interesting really,
@@ -474,7 +488,10 @@ class visualization(object):
 
         linear_func = np.poly1d(np.polyfit(years, data, 1))
 
-        linear_exp1D = np.poly1d(np.polyfit(years, np.log(data), 1))  #Remember to np.exp np.exp(linear_exp(data))
+        if 0 in data:  #To avodi possible log(0)
+            linear_exp1D = 0
+        else:
+            linear_exp1D = np.poly1d(np.polyfit(years, np.log(data), 1))  #Remember to np.exp np.exp(linear_exp(data))
 
         def func(x, a, b, c):
             return a*np.exp(-((x-b)/c)**2)
@@ -498,18 +515,30 @@ class visualization(object):
 
         combs_1 = np.linspace(1, 10, 21)  #Starts at 1 to avoid division by zero
         combs_2 = np.linspace(0, 5, 12)
-        lincombs = np.array(np.meshgrid(combs_1,combs_2,combs_2)).T.reshape(-1,3)
-        least_squares = 1e20
-        lin_weight = 4
+        if linear_exp1D == 0:
+            lincombs = np.array(np.meshgrid(combs_1,combs_2)).T.reshape(-1,2)
+            least_squares = 1e20
+            lin_weight = 4
 
-        for i, j, k in lincombs:
-            f_new = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(years) + j*np.exp(linear_exp1D(years)) + k*func(years, a, b, c))
-            ls = np.sum((f_new - data)**2)
-            if least_squares > ls:
-                least_squares = ls
-                f = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(time) + j*np.exp(linear_exp1D(time)) + k*func(time, a, b, c))
-                weights = [i,j,k]
-        #print(weights)
+            for i, k in lincombs:
+                f_new = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(years) + k*func(years, a, b, c))
+                ls = np.sum((f_new - data)**2)
+                if least_squares > ls:
+                    least_squares = ls
+                    f = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(time) + k*func(time, a, b, c))
+                    weights = [i,j]
+        else:
+            lincombs = np.array(np.meshgrid(combs_1,combs_2,combs_2)).T.reshape(-1,3)
+            least_squares = 1e20
+            lin_weight = 4
+
+            for i, j, k in lincombs:
+                f_new = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(years) + j*np.exp(linear_exp1D(years)) + k*func(years, a, b, c))
+                ls = np.sum((f_new - data)**2)
+                if least_squares > ls:
+                    least_squares = ls
+                    f = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(time) + j*np.exp(linear_exp1D(time)) + k*func(time, a, b, c))
+                    weights = [i,j,k]
 
         return f
 
@@ -538,7 +567,7 @@ class visualization(object):
         return np.array(final)
 
 
-    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Antall utskrivninger', save_fig = False):
+    def part1_plotting(self, data, period_start, period_end, drug_list, age_indexes, gender, region, label = 'Forbruk', save_fig = False):
         """
         A function used for plotting in a histogram like fashion.
         It uses both the data given and if necesarry uses the curve_fitting and final_function functions when there is not enough data.
@@ -583,9 +612,9 @@ class visualization(object):
             pass
         else:
             try:
-                plt.savefig(save_fig)
+                plt.savefig(str(save_fig))
             except:
-                plt.savefig(save_fig + '.png')
+                plt.savefig(str(save_fig) + '.png')
         plt.show()
 
         return None
@@ -641,14 +670,15 @@ class visualization(object):
         else:
             alder = self.age_group_keys[age_indexes[0]]
 
-        func = self.curve_fitting(data_tot_drugs)
-        func_value = self.final_function(data_tot_drugs, func(year), year)
+        time = np.array([year])
+        func = self.curve_fitting(data_tot_drugs, time)
+        func_value = self.final_function(data_tot_drugs, func, time)
         x = []
         explosion = []
 
         for i in range(len(data_drugs)):
-            func = self.curve_fitting(data_drugs[i])
-            x.append(self.final_function(data_drugs[i], func(year), year)/func_value)
+            func = self.curve_fitting(data_drugs[i], time)
+            x.append(self.final_function(data_drugs[i], func, time)/func_value)
             explosion.append(0.05)
 
         if self.med_type_index == 'Not given':
@@ -658,6 +688,11 @@ class visualization(object):
             x.append(1-np.sum(np.array(x)))
             drug_list.append('Resterende '+ self.folder_name)
 
+        if x[-1] < 0:
+            del x[-1]
+            del explosion[-1]
+            del drug_list[-1]
+
         plt.figure(figsize = [12, 4.8])
         plt.pie(x, explode = explosion, labels = drug_list, autopct='%1.1f%%', shadow=True)
         plt.title(gender + ' i ' + region + ' alder ' + alder + ' år ' + str(year))
@@ -666,31 +701,16 @@ class visualization(object):
             pass
         else:
             try:
-                plt.savefig(file_name)
+                plt.savefig(save_fig)
             except:
-                plt.savefig(file_name + '.png')
+                plt.savefig(save_fig + '.png')
 
         plt.show()
 
         return None
 
 
-    def probability(self, probs):
-
-        if np.sum(probs)>1:
-            probs /= 100
-            print('Do not use probability in %, this is now fixed but for furture reference')
-        else:
-            pass
-
-        tot_prob = probs[0]
-        for i in range(1, len(probs)):
-            tot_prob += probs[i] + probs[i]*probs[i-1]
-
-        return tot_prob
-
-
-    def generelt_medisinforbruk(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False, save_fig = False):
+    def medisinforbruk(self, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False, save_fig = False, label = False):
         """
         Gives a bar plot of the medical use in Norway based on all the data in the folder and the specified parameters. The plot can either be of ratios or total use.
         The plotted data is for the chosen gender in a specific region for a specific age group.
@@ -715,16 +735,23 @@ class visualization(object):
             ratio_data = data_drugs/total_use
             ratio_list = self.drugs[:]
             del ratio_list[self.med_type_index]
-            self.part1_plotting(ratio_data, period_start, period_end, ratio_list, age_indexes, gender, region, label = 'Ratio', save_fig = save_fig)
+
+            if label == False:
+                self.part1_plotting(ratio_data, period_start, period_end, ratio_list, age_indexes, gender, region, label = 'Ratio ' + self.folder_name + '/(Legemiddel X)', save_fig = save_fig)
+            else:
+                self.part1_plotting(ratio_data, period_start, period_end, ratio_list, age_indexes, gender, region, label = label, save_fig = save_fig)
         else:
-            self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region, save_fig = save_fig)
+            if label == False:
+                self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region, save_fig = save_fig)
+            else:
+                self.part1_plotting(data, period_start, period_end, self.drugs, age_indexes, gender, region, save_fig = save_fig, label = label)
 
 
-    def individuelt_medisinforbruk(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False, save_fig = False):
+    def medisinforbruk_i(self, drug, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = False, save_fig = False, label = False):
         """
         Gives a bar plot of the medical use for a specific medicine in Norway based on the data in the folder and for the specified parameters. The plot can either be of ratios or total use.
         The plotted data is for the chosen gender in a specific region for a specific age group.
-        drug         -> The medicine the plot is for (string). The string must be exactly the same as the name of the datafile in the folder without the .xls or .csv ending.
+        drug         -> The medicine the plot is for (string) or list. The string must be exactly the same as the name of the datafile in the folder without the .xls or .csv ending.
         gender       -> The gender (string) must be the same as the string given in the help function.
         region       -> The region (string) must be the same as the string given in the help function.
         age_start    -> The yougest age the data is chosen from (int number from 0 -> age_end)
@@ -737,19 +764,36 @@ class visualization(object):
         """
 
         age_indexes = self.age_parameters(age_start, age_end)
-        med_index = self.drugs.index(drug)
         data = self.drug_array(age_indexes, region, gender)
+        if type(drug) == type(['yolo']):
+            pass
+        else:
+            drug = [drug]
+
+        med_index = []
+        for i in range(len(drug)):
+            med_index.append(self.drugs.index(drug[i]))
+
+        drugs = []
+        for i in med_index:
+            drugs.append(self.drugs[i])
 
         if ratio:
             total_use = np.copy(data[self.med_type_index])
             data_drugs = np.delete(data, self.med_type_index, 0)
             ratio_data = data/total_use
-            self.part1_plotting(ratio_data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region, label = 'Ratio', save_fig = save_fig)
+            if label == False:
+                self.part1_plotting(ratio_data[med_index], period_start, period_end, drugs, age_indexes, gender, region, label = 'Ratio ' + self.folder_name + '/(Legemiddel X)', save_fig = save_fig)
+            else:
+                self.part1_plotting(ratio_data[med_index], period_start, period_end, drugs, age_indexes, gender, region, label = label, save_fig = save_fig)
         else:
-            self.part1_plotting(data[med_index], period_start, period_end, self.drugs[med_index], age_indexes, gender, region, save_fig = save_fig)
+            if label == False:
+                self.part1_plotting(data[med_index], period_start, period_end, drugs, age_indexes, gender, region, save_fig = save_fig)
+            else:
+                self.part1_plotting(data[med_index], period_start, period_end, drugs, age_indexes, gender, region, save_fig = save_fig, label = label)
 
 
-    def forhold_medisin(self, anbefalt = None, ikke_anbefalt = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, save_fig = False):
+    def forhold_medisin(self, teller = None, nevner = None, gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, save_fig = False, label = False):
         """
         Gives a bar plot of the ratio (recommended medicine)/(not recommended medicine) for the specified medicine based on the data in the folder and for the specified parameters.
         The plotted data is for the chosen gender in a specific region for a specific age group.
@@ -767,102 +811,48 @@ class visualization(object):
         save_fig     -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
         """
 
-        if anbefalt == ikke_anbefalt:
-            print('Du må spesisere anbefalt eller ikke anbefalt medisin')
+        if teller == None or nevner == None:
+            print('You have to specify both the \'teller\' and \'nevner\' variables')
             sys.exit()
 
         age_indexes = self.age_parameters(age_start, age_end)
-
         data = self.drug_array(age_indexes, region, gender)
+        if type(teller) == type(['yolo']):
+            pass
+        else:
+            teller = [teller]
 
-        if anbefalt == None:
-            if type(ikke_anbefalt) == type([]):
+        if type(nevner) == type(['yolo']):
+            pass
+        else:
+            nevner = [nevner]
+
+        teller_indexes = []
+        nevner_indexes = []
+
+        for i in range(len(self.drugs)):
+            if self.drugs[i] in teller:
+                teller_indexes.append(i)
+            if self.drugs[i] in nevner:
+                nevner_indexes.append(i)
+            else:
                 pass
-            else:
-                ikke_anbefalt = [ikke_anbefalt]
 
-            data_not_recommended = np.zeros((len(ikke_anbefalt), len(self.year_keys)))
-            if self.med_type_index == 'Not given':
-                data_recommended = np.zeros((len(data) - len(ikke_anbefalt), len(self.year_keys)))
-            else:
-                data_recommended = np.zeros((len(data) - len(ikke_anbefalt) - 1, len(self.year_keys)))
-            ikke_anbefalt_indexes = []
-            indexes = []
-            counter = 0
+        legend_string = '('
+        for i in teller:
+            legend_string += i + ' + '
 
-            for medisin in ikke_anbefalt:
-                index = (self.drugs.index(medisin))
-                indexes.append(index)
-                data_not_recommended[counter] = data[index]
-                counter += 1
+        legend_string = legend_string[:-3] + ')/('
 
-            counter = 0
-            for i in range(len(data)):
-                if (i in indexes) or (i == self.med_type_index):
-                    pass
-                else:
-                    data_recommended[counter] = data[i]
-                    counter += 1
+        for i in nevner:
+            legend_string += i + ' + '
 
-            legend_string = '('
-            for drug in self.drugs:
-                if drug in ikke_anbefalt:
-                    pass
-                else:
-                    legend_string += drug + ' + '
-            legend_string = legend_string[:-3]
-            legend_string += ')/('
-            for i in ikke_anbefalt:
-                legend_string += i + ' + '
-            legend_string = legend_string[:-3]
-            legend_string += ')'
+        legend_string = legend_string[:-3] + ')'
 
-        if ikke_anbefalt == None:
-            if type(anbefalt) == type([]):
-                pass
-            else:
-                anbefalt = [anbefalt]
-
-            data_recommended = np.zeros((len(anbefalt), len(self.year_keys)))
-            if self.med_type_index == 'Not given':
-                data_not_recommended = np.zeros((len(data) - len(anbefalt), len(self.year_keys)))
-            else:
-                data_not_recommended = np.zeros((len(data) - len(anbefalt) - 1, len(self.year_keys)))
-            ikke_anbefalt_indexes = []
-            indexes = []
-            counter = 0
-
-            for medisin in anbefalt:
-                index = (self.drugs.index(medisin))
-                indexes.append(index)
-                data_recommended[counter] = data[index]
-                counter += 1
-
-            counter = 0
-            for i in range(len(data)):
-                if i in indexes or i == self.med_type_index:
-                    pass
-                else:
-                    data_not_recommended[counter] = data[i]
-                    counter += 1
-
-            legend_string = '('
-            for i in anbefalt:
-                legend_string += i + ' + '
-            legend_string = legend_string[:-3]
-            legend_string += ')/('
-            for drug in self.drugs:
-                if drug in anbefalt:
-                    pass
-                else:
-                    legend_string += drug + ' + '
-            legend_string = legend_string[:-3]
-            legend_string += ')'
-
-        ratio = np.sum(data_recommended, axis=0)/np.sum(data_not_recommended, axis = 0)
-
-        self.part1_plotting(ratio, period_start, period_end, legend_string, age_indexes, gender, region, label = 'Ratio: Anbefalt/(Ikke anbefalt)', save_fig = save_fig)
-
+        if label == False:
+            self.part1_plotting(np.sum(data[teller_indexes], axis = 0)/np.sum(data[nevner_indexes], axis = 0), period_start, period_end, legend_string, age_indexes, gender, region, label = 'Ratio', save_fig = save_fig)
+        else:
+            self.part1_plotting(np.sum(data[teller_indexes], axis = 0)/np.sum(data[nevner_indexes], axis = 0), period_start, period_end, legend_string, age_indexes, gender, region, label = label, save_fig = save_fig)
 
         return None
 
@@ -964,13 +954,17 @@ class visualization(object):
             else:
                 init()
                 update(year)
-                try:
-                    plt.savefig(save_fig)
-                except:
-                    plt.savefig(save_fig + '.png')
-                else:
+                if save_fig == False:
                     pass
-
+                else:
+                    if type(save_fig) == type('str'):
+                        try:
+                            plt.savefig(save_fig)
+                        except:
+                            plt.savefig(save_fig + '.png')
+                    else:
+                        print('save_fig must be a string.')
+                        pass
                 plt.show()
             return None
 
@@ -984,7 +978,7 @@ class visualization(object):
             return ani.to_html5_video()
         # conda install -c conda-forge ffmpeg ##Into the terminal made it work for me
 
-    def medisiner_og_befolkning(self, prevalens, sykdom = 'Epilepsi', gender = 'Mann', region = 'Hele landet', age_start = 0, age_end= 100, period_start = 2004, period_end = 2030, save_fig = False):
+    def medisiner_og_befolkning(self, prevalens, sykdom = None, gender = 'Mann', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, save_fig = False, label = False):
         """
         Returns a bar plot of the number of users for the different medicines and medicine type given in the data folder with the number of people having a specified disease or diseases.
         The data for the diseases is based of the probability of having said disease and the number of inhabitants gotten from SSB.
@@ -1024,12 +1018,18 @@ class visualization(object):
         plotting_data[:-1] = data
         plotting_data[-1] = p_data*prevalens
         drugs_name = self.drugs[:]
-        drugs_name.append('Prevalens: %.2f%%' %(prevalens*100))
+        try:
+            drugs_name.append(sykdom + ' Prevalens: %.2f%%' %(prevalens*100))
+        except:
+            drugs_name.append('Prevalens: %.2f%%' %(prevalens*100))
 
-        self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = 'Antall personer', save_fig = save_fig)
+        if label == False:
+            self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = 'Antall personer', save_fig = save_fig)
+        else:
+            self.part1_plotting(plotting_data, period_start, period_end, drugs_name, age_indexes, gender, region, label = label, save_fig = save_fig)
 
 
-    def medisiner_og_befolkning2(self, prevalens, drug = 'Valproat', gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True, save_fig = False):
+    def medisiner_og_befolkning2(self, prevalens, drug = 'Valproat', gender = 'Kvinne', region = 'Hele landet', age_start = 15, age_end= 49, period_start = 2004, period_end = 2018, ratio = True, save_fig = False, label = False):
         """
         Returns a bar plot of either the ratio using a medicine/(number of people having the disease) or the number of people having the disease and the number of people using the medicine.
         prevalens    -> The probability for a disease or diseases, can be either a number or a list of numbers all in probability % not fractions.
@@ -1050,24 +1050,50 @@ class visualization(object):
             prevalens = self.probability(np.array(prevalens)/100)
         else:
             prevalens /= 100
+
+        if type(drug) == type([]):
+            pass
+        else:
+            drug = [drug]
         #Source SSB https://www.ssb.no/statbank/table/07459/
 
         age_indexes = self.age_parameters(age_start, age_end)
         data = self.drug_array(age_indexes, region, gender)
 
         if region == 'Hele landet':
-            p_data = self.population_array(age_indexes, self.p_places[0], gender)
-            for k in range(1,len(self.p_places)):
-                p_data += self.population_array(age_indexes, self.p_places[k], gender)
+            if 'Hele landet' in self.p_places:
+                p_data = self.population_array(age_indexes, region, gender)
+            else:  #If the data is from SSB and not having the variable Hele landet
+                p_data = self.population_array(age_indexes, self.p_places[0], gender)
+                for k in range(1,len(self.p_places)):
+                    p_data += self.population_array(age_indexes, self.p_places[k], gender)
         else:
             p_data = self.population_array(age_indexes, region, gender)
 
-        med_index = self.drugs.index(drug)
+        med_index = []
+        drugs = []
+        for i in drug:
+            try:
+                med_index.append(self.drugs.index(i))
+                drugs.append(i)
+            except:
+                print('Legemiddelet ' + i + ' finnes ikke blant datasettene, sjekk mulige skrivefeil.')
 
         if ratio:
-            self.part1_plotting(data[med_index]/(prevalens*p_data), period_start, period_end, 'Ratio ' + self.drugs[med_index] + ' over antall med sykdom X', age_indexes, gender, region, label = 'Ratio', save_fig = save_fig)
+            if label == False:
+                self.part1_plotting(data[med_index]/(prevalens*p_data), period_start, period_end, drugs, age_indexes, gender, region, label = 'Ratio: Brukere av legemiddel X / Antall med sykdom Y', save_fig = save_fig)
+            else:
+                self.part1_plotting(data[med_index]/(prevalens*p_data), period_start, period_end, drugs, age_indexes, gender, region, label = label, save_fig = save_fig)
         else:
-            self.part1_plotting([data[med_index], p_data], period_start, period_end, [self.drugs[med_index], 'Befolkning med X'] , age_indexes, gender, region, save_fig = save_fig)
+            drugs.append('Prevalens: %.2f%%' %(prevalens*100))
+            data2 = np.zeros((len(med_index) + 1, len(data[0])))
+            for i in range(len(med_index)):
+                data2[i] = data[med_index[i]]
+            data2[-1] = p_data*prevalens
+            if label == False:
+                self.part1_plotting(data2, period_start, period_end, drugs, age_indexes, gender, region, save_fig = save_fig)
+            else:
+                self.part1_plotting(data2, period_start, period_end, drugs, age_indexes, gender, region, save_fig = save_fig, label = label)
 
 
 
@@ -1076,14 +1102,14 @@ class visualization(object):
 
 
 if __name__ == "__main__":
-    #test = visualization('Antiepileptika')
-    #test.tabell()
-    #test.generelt_medisinforbruk(period_start = 2004, period_end = 2018)
-    #test.individuelt_medisinforbruk(drug = 'Valproat', ratio = False, period_start = 2000, period_end = 2025)
-    #test.forhold_medisin(ikke_anbefalt = 'Valproat')
-    #test.kake_medisinforbruk()
-    #test.medisinforbruk_tidsutviling(drug = "Valproat", gender = 'Kvinne', region = 'Hele landet')
-    #test.medisiner_og_befolkning2(prevalens = 2.5)
+    test = visualization('Antiepileptika')
+    #test2 = visualization('R')
+    #test3 = visualization('R1')
+    test.medisiner_og_befolkning2(prevalens = 2.5, ratio = True, drug = ['Valproat', 'Lamotrigin'])
+
+
+
+
     pass
 
 
