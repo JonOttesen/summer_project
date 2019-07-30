@@ -724,10 +724,13 @@ class visualization(object):
         if save_fig == False:
             pass
         else:
+            if not os.path.exists('Figures'):  #Save the plotes in a sub folder with name Figures
+                os.makedirs('Figures')
             try:
-                plt.savefig(save_fig)
+                plt.savefig('Figures\\' + str(save_fig))  #Actually saving the plots.
             except:
-                plt.savefig(save_fig + '.png')
+                plt.savefig('Figures\\' + str(save_fig) + '.png')
+            os.chdir(path)
 
         plt.show()
 
