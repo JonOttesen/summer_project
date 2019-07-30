@@ -340,8 +340,16 @@ class visualization(object):
     - medisiner_og_befolkning2
     """
 
-    def __init__(self, folder_name, stop_at_90 = True):
+    def __init__(self, folder_name, plot_type = 'column', stop_at_90 = True):
         self.folder_name = folder_name
+
+        if plot_type == 'dot':
+            self.plot_type = 1
+        elif plot_type == 'line':
+            self.plot_type = 2
+        else:
+            self.plot_type = 3
+
 
         os.chdir(self.folder_name)
         self.filenames = os.listdir()
@@ -592,16 +600,29 @@ class visualization(object):
             alder = self.age_group_keys[age_indexes[0]]
 
         plt.figure(figsize = [12, 4.8])
+        markers = ['.', '^', '1', '8', 's', 'p', '*', 'x', 'D', 'h']
         if type(data[0]) == type(np.array([1])):
             for i in range(len(data)):
                 func = self.curve_fitting(data[i], time)
-                plt.bar(time-0.4+i*offset, self.final_function(data[i], func, time), width = offset, label = drug_list[i])  ## TODO: Make sure there is no curve fitting when period_start and period_end is in self.year_keys
-                #plt.plot(time, np.exp(func(time)))
+
+                if self.plot_type == 3:
+                    plt.bar(time-0.4+i*offset, self.final_function(data[i], func, time), width = offset, label = drug_list[i])
+                elif self.plot_type == 2:
+                    plt.plot(time, self.final_function(data[i], func, time), label = drug_list[i])
+                else:
+                    plt.plot(time, self.final_function(data[i], func, time), 'ro', marker = markers[i], label = drug_list[i], color = np.random.rand(3,))
+
                 plt.legend()
                 plt.title(gender + ' i ' + region + ' alder ' + alder)
         else:
             func = self.curve_fitting(data, time = time)
-            plt.bar(time, self.final_function(data, func, time), label = drug_list)
+
+            if self.plot_type == 3:
+                plt.bar(time, self.final_function(data, func, time), label = drug_list)
+            elif self.plot_type == 2:
+                plt.plot(time, self.final_function(data, func, time), label = drug_list)
+            else:
+                plt.plot(time, self.final_function(data, func, time), 'ro', label = drug_list)
             plt.legend()
             plt.title(gender + ' i ' + region + ' alder ' + alder)
 
@@ -896,6 +917,10 @@ class visualization(object):
         year    -> A specific year to see the plot instead of a animation
         """
 
+        if type(drug) == type([]):
+            print('The \'drug\' argument has to be a string')
+            sys.exit()
+
         age_indexes = self.age_parameters(0, 100)
         med_index = self.drugs.index(drug)
         med_dict = self.data[med_index]
@@ -1096,16 +1121,53 @@ class visualization(object):
                 self.part1_plotting(data2, period_start, period_end, drugs, age_indexes, gender, region, save_fig = save_fig, label = label)
 
 
+    def fodsler(self, births_sykdom = 98, drug = 'Valproat', prevalens = 0.7, save_fig = False, label = False, ratio = False):
+        births = np.array([2, 12, 36, 106, 239, 403, 719, 1007, 1451, 1791, 2452, 2981, 3692, 4169, 4426, 4585, 4503, 4090, 3804, 3210, 2656, 2299, 1890, 1445, 1105, 748, 510, 306, 211, 107, 73, 40, 18, 10, 6])  #The birthnumbers from SSB for 2018 age 15-49, change these to update.
+        # https://www.ssb.no/statbank/table/06990/
+        age_indexes = self.age_parameters(15, 49)
+        sums_birth = np.zeros(len(age_indexes))
+        p_data = np.zeros(len(age_indexes))
 
+        if type(prevalens) == type([]):
+            prevalens = self.probability(np.array(prevalens)/100)
+        else:
+            prevalens /= 100
 
+        med_users = np.zeros((len(self.year_keys), len(age_indexes)))
+
+        for i in range(len(sums_birth)):
+            sums_birth[i] += np.sum(births[:i*5 + 5]) - np.sum(births[:i*5])
+            p_data[i] = self.population_array([age_indexes[i]], 'Hele landet', 'Kvinne')[self.year_keys.index(2018)]
+            med_users[:, i] = self.drug_array([age_indexes[i]], 'Hele landet', 'Kvinne')[self.drugs.index(drug)]
+
+        age_indexes2 = self.age_parameters(0, 100)
+        prob_birth = np.copy(sums_birth/p_data)
+        drugs_tot = self.drug_array(age_indexes2, 'Hele landet', 'Kvinne')[self.drugs.index(drug)]
+
+        ratio2 = births_sykdom/(np.sum(births)*prevalens)
+        births = np.sum(prob_birth*med_users, axis = 1)*ratio2
+
+        if ratio == True:
+            births_val_ratio = births/drugs_tot
+            if label == False:
+                self.part1_plotting(births_val_ratio, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Forholdet: fødlser blant valproat brukere/antall valproat brukere')
+            else:
+                self.part1_plotting(births_val_ratio, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = label)
+        else:
+            if label == False:
+                self.part1_plotting(births, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Antall fødsler blant valproat brukere')
+            else:
+                self.part1_plotting(births, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = label)
 
 
 
 if __name__ == "__main__":
-    test = visualization('Antiepileptika')
+    test = visualization('Antiepileptika', 'dot')
     #test2 = visualization('R')
     #test3 = visualization('R1')
-    test.medisiner_og_befolkning2(prevalens = 2.5, ratio = True, drug = ['Valproat', 'Lamotrigin'])
+    #test.medisiner_og_befolkning2(prevalens = 2.5, ratio = True, drug = ['Valproat', 'Lamotrigin'])
+    test.fodsler(drug = 'Antiepileptika', ratio = True)
+
 
 
 

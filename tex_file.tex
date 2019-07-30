@@ -13,8 +13,9 @@
 \usepackage{tikz}
 \usepackage{CJKutf8}
 \usepackage[bottom]{footmisc}   % Place a footnote in an environment in the bottom of the page
-\usepackage{array}
-\usepackage{makecell}
+\usepackage{makecell}  %Force linebreaks inside a table
+\usepackage{longtable}  %Make a table span more than one page
+
 
 
 % Document formatting
@@ -244,18 +245,63 @@ Den siste metoden er {\color{blue}medisiner\_og\_befolkning2}\footnote{Jeg klart
 antiep.medisiner_og_befolkning2(prevalens = 2.5, drug = ['Valproat', 'Lamotrigin'], ratio = True, label = 'Noe greier')  #Forholdet som nå vises er brukere av det spesifiserte legemiddelet over antall med en sykdom basert på prevalensen og befolkningsdataene.
 respir.medisiner_og_befolkning2(prevalens = [2.5, 1.5], drug = 'R05', gender = 'Mann')
 \end{lstlisting}
+\newpage
 
 \subsection{Metoder, argumenter og beskrivelse}
 
+{\small
+\begin{longtable}[l]{c|c|m{75mm}}
+Metode & Argumenter & Beskrivelse\endhead \hline
+\texttt{\color{green}visualization} & \makecell{\texttt{\color{red}folder\_name}\\\texttt{\color{red}plot\_type}} &  \\ \hline
 
-\begin{table}[H]
-\begin{tabular}{c|c|c|c}
-Metode & Argumenter & Beskrivelse & Merk\\ \hline
-\texttt{\color{green}visualization} & \texttt{\color{red}folder\_name}\texttt{\color{red}plot\_type} & blalala & blablala\\
- & \texttt{\color{red}plot\_type} &  & \\ \hline
-\end{tabular}
-\end{table}
+{\color{blue}\texttt{tabell}} & --------- & 
+En tabell som printer alle variablene for {\color{red}\texttt{gender}}, {\color{red}\texttt{region}} og {\color{red}\texttt{drug}} samt hvilke årstall som det finnes data for.\\ \hline
 
+{\color{blue}\texttt{medisinforbruk}} & 
+\color{red}\makecell{\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{period\_start}\\ \texttt{period\_end}\\ \texttt{ratio}\\ \texttt{save\_fig}\\ \texttt{label}} & Denne metoden kan gi to mulige plott. Enten ett plott av alle dataene for hver enkelt datasett i filmappen, eller ett plott av forholdet mellom dataene for legemiddlene over dataene for legemiddeltypen. Dvs måledataene for hver enkelt fil delt på måledataene til filen med navnet til filmappen på y-aksen. På x-aksen plottes det året dataene gjelder.\\ \hline
+
+{\color{blue}\texttt{medisinforbruk\_i}} & 
+\color{red}\makecell{{\texttt{drug}\\\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{period\_start}\\ \texttt{period\_end}\\ \texttt{ratio}\\ \texttt{save\_fig}\\ \texttt{label}}} & Plotter dataene for enten en eller flere valgte legemidler eller forholdet mellom dataene for legemiddelet/legemiddelene over dataene for filen for legemiddeltypen(filen med navn likt som filmappen) på y-aksen og år på x-aksen. \\ \hline
+
+{\color{blue}\texttt{forhold\_medisin}} & 
+\color{red}\makecell{{\texttt{teller}\\\texttt{nevner}\\\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{period\_start}\\ \texttt{period\_end}\\ \texttt{ratio}\\ \texttt{save\_fig}\\ \texttt{label}}} &  Plotter forholdet mellom summen av legemidlene spesifisert i telleren over summen av legemidlene spesifisert i nevneren på y-aksen og året datene gjelder på x-aksen.\\ \hline
+
+{\color{blue}\texttt{kake\_medisinforbruk}} & 
+\color{red}\makecell{{\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{year}\\ \texttt{save\_fig}}} & Plotter et sektordiagram basert på dataene fra alle datasettene for et spesifisert år. Hvis filen med samme navn som filmappen eksisterer og hvis dataen for denne filen er numerisk større enn for summen av de andre anses dette tallet for 100\% i sektordiagrammet. De resterende dataene er da X\% av denne mengden. Hvis tallet er numrisk mindre eller filen eksisterer anses summen fra de andre filene som 100\%.\\ \hline
+
+{\color{blue}\texttt{medisinforbruk\_tidsutviling}} & 
+\color{red}\makecell{{\texttt{drug}\\\texttt{gender}\\ \texttt{region}\\ \texttt{ratio}\\ \texttt{year}\\\texttt{save\_fig}}} & Hovedsaklig ment som en animasjon av utvikling av måledataene for et spesifisert legemiddel gjennom de årene med data. Her plottes måledataene på y-aksen og aldergruppen på x-aksen. Animasjonen kan også vise animere forholdet mellom legemiddelet og filmappe-filen (legemiddeltypen). Kan også gi ett stillplott for et spesifisert år. Hvis metoden brukes i IPython(jupyter notebook) må kommandoen \texttt{HTML} fra IPython anvendes.\\ \hline
+
+{\color{blue}\texttt{medisiner\_og\_befolkning}} & 
+\color{red}\makecell{{\texttt{prevalens}\\\texttt{sykdom}\\\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{period\_start}\\ \texttt{period\_end}\\ \texttt{ratio}\\ \texttt{save\_fig}\\ \texttt{label}}} & Plotter antallet personer med sykdom X basert på prevalensen gitt i prosent med dataene fra alle datasettene i filmappen. Kan også plotte forholdet mellom dataene og antall personer med sykdom X på y-aksen. På x-aksen vises korresponderende år.\\ \hline
+
+{\color{blue}\texttt{medisiner\_og\_befolkning2}} & 
+\color{red}\makecell{{\texttt{prevalens}\\\texttt{drug}\\\texttt{gender}\\ \texttt{region}\\ \texttt{age\_start}\\ \texttt{age\_end}\\ \texttt{period\_start}\\ \texttt{period\_end}\\ \texttt{ratio}\\ \texttt{save\_fig}\\ \texttt{label}}} & Plotter antall personer med sykdom X basert på prevalensen gitt i prosent med dataene fra de spesifiserte datasettene. Kan også plotte forholdet mellom de spesifiserte datasettene og antall personer med sykdom X. På x-aksen vises korresponderende år for dataene.\\ \hline
+
+\end{longtable}
+}
+
+{\small
+\begin{longtable}[l]{c|c|m{75mm}}
+Argument & Input & Beskrivelse \endhead \hline
+\color{red}\texttt{folder\_name} & & \\ \hline
+\color{red}\texttt{plot\_type} & & \\ \hline
+\color{red}\texttt{gender} & & \\ \hline
+\color{red}\texttt{region} & & \\ \hline
+\color{red}\texttt{age\_start} & & \\ \hline
+\color{red}\texttt{age\_end} & & \\ \hline
+\color{red}\texttt{period\_start} & & \\ \hline
+\color{red}\texttt{period\_end} & & \\ \hline
+\color{red}\texttt{ratio} & & \\ \hline
+\color{red}\texttt{save\_fig} & & \\ \hline
+\color{red}\texttt{label} & & \\ \hline
+\color{red}\texttt{drug} & & \\ \hline
+\color{red}\texttt{teller} & & \\ \hline
+\color{red}\texttt{nevner} & & \\ \hline
+\color{red}\texttt{prevalens} & & \\ \hline
+\color{red}\texttt{sykdom} & & \\ \hline
+\end{longtable}
+}
 
 
 \bibliographystyle{plain}
