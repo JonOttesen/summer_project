@@ -343,7 +343,7 @@ class visualization(object):
     def __init__(self, folder_name, plot_type = 'column', stop_at_90 = True):
         self.folder_name = folder_name
 
-        if plot_type == 'dot':
+        if plot_type == 'dot':  #Decides which type of plot is plotted
             self.plot_type = 1
         elif plot_type == 'line':
             self.plot_type = 2
@@ -355,7 +355,7 @@ class visualization(object):
         self.filenames = os.listdir()
         os.chdir(path)
 
-        try:
+        try:  #Checks for either the csv or xlsx population file from either reseptregisteret or SSB.
             self.filenames.remove('Befolkning.xlsx')
             self.population = files(folder_name).population_excel('Befolkning.xlsx', stop_at_90)
             self.p_gender_keys = list(self.population.keys())
@@ -453,30 +453,26 @@ class visualization(object):
         else:
             pass
 
-        tot_prob = probs[0]
+        tot_prob = probs[0]  #Summing up independent probabilities.
         for i in range(1, len(probs)):
             tot_prob += probs[i] + probs[i]*probs[i-1]
 
         return tot_prob
 
 
-    def age_parameters(self, age_start, age_end, age_group_keys = None):
+    def age_parameters(self, age_start, age_end):
         """
         Nothing interesting really,
         find the indexes corresponding to the correct keys in self.age_group_keys based on the start age and end age.
         A requirement is that self.age_group_keys starts at 0 and ends at 90+ having all the parameters in-between i.e selecting all age gropus from reseptregisteret.
         Another requirement is that the age groups are as followed 0-4, 5-9, 10-14 i.e 5 year groups.
         """
-        if age_group_keys == None:
-            age_group_keys = self.age_group_keys
-        else:
-            pass
 
         age_indexes = []
         if age_start >= 90:
-            age_indexes.append(len(age_group_keys)-1)
+            age_indexes.append(len(self.age_group_keys)-1)
         else:
-            for i in range(0, len(age_group_keys)):
+            for i in range(0, len(self.age_group_keys)):
                 if age_start < 5*(i+1) and age_end >= 5*(i):
                     age_indexes.append(i)
 
@@ -491,7 +487,11 @@ class visualization(object):
         """
         years = np.array(self.year_keys)
 
-        if time[0] in years and time[-1] in years:
+        counter = 0
+        for g in time:
+            if g in self.year_keys:
+                counter +=1
+        if counter == len(time):
             return None
 
         linear_func = np.poly1d(np.polyfit(years, data, 1))
@@ -514,7 +514,7 @@ class visualization(object):
         least_squares = np.sum((test-data)**2)
         a, b, c = X[0,0], X[0,1], X[0,2]
 
-        for i, j, k in X:
+        for i, j, k in X:  #Finds the best bell curve fit
             test = func(years, i, j, k)
             ls = np.sum((test-data)**2)
             if ls < least_squares:
@@ -529,11 +529,11 @@ class visualization(object):
             lin_weight = 4
 
             for i, k in lincombs:
-                f_new = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(years) + k*func(years, a, b, c))
+                f_new = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(years) + k*func(years, a, b, c))  #Expands the best as a basis
                 ls = np.sum((f_new - data)**2)
                 if least_squares > ls:
                     least_squares = ls
-                    f = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(time) + k*func(time, a, b, c))
+                    f = 1/(lin_weight*i + k)*(lin_weight*i*linear_func(time) + k*func(time, a, b, c))  #Expands the best as a basis
                     weights = [i,j]
         else:
             lincombs = np.array(np.meshgrid(combs_1,combs_2,combs_2)).T.reshape(-1,3)
@@ -541,11 +541,11 @@ class visualization(object):
             lin_weight = 4
 
             for i, j, k in lincombs:
-                f_new = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(years) + j*np.exp(linear_exp1D(years)) + k*func(years, a, b, c))
+                f_new = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(years) + j*np.exp(linear_exp1D(years)) + k*func(years, a, b, c))  #Expands the best as a basis
                 ls = np.sum((f_new - data)**2)
                 if least_squares > ls:
                     least_squares = ls
-                    f = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(time) + j*np.exp(linear_exp1D(time)) + k*func(time, a, b, c))
+                    f = 1/(lin_weight*i + j + k)*(lin_weight*i*linear_func(time) + j*np.exp(linear_exp1D(time)) + k*func(time, a, b, c))  #Expands the best as a basis
                     weights = [i,j,k]
 
         return f
@@ -560,7 +560,7 @@ class visualization(object):
         time -> the time from period_start to period_end in integer steps.
         returns a array of datapoints used to plot againts the time array.
         """
-        if type(time) == type([1]) or type(time) == type(np.array([1])):
+        if type(time) == type([1]) or type(time) == type(np.array([1])):  #Makes sure the type of time and f is correct.
             pass
         else:
             f = [f]
@@ -569,7 +569,7 @@ class visualization(object):
         final = []
         for year in time:
             if year in self.year_keys:
-                final.append(data[self.year_keys.index(year)])
+                final.append(data[self.year_keys.index(year)])  #Checks whether there exist data for that year, if not use the curve fitted data.
             else:
                 final.append(f[time == year])
         return np.array(final)
@@ -580,7 +580,7 @@ class visualization(object):
         A function used for plotting in a histogram like fashion.
         It uses both the data given and if necesarry uses the curve_fitting and final_function functions when there is not enough data.
         data         -> All the data points mathcin the region, desired age and gender. This also includes that of which is not plotted since all data is used to find the best curve fit.
-                        Takes a array of size (number of drugs, total number of years).
+                        Takes a array of size (number of drugs, total number of years). Has to be either a 1D or 2D array.
         period_start -> The earliest year the plot starts at. Takes integer values
         period_end   -> The last year in the plot. Takes integer values
         drug_list    -> A list of all the drugs plotted. Either a list for multiple drugs plotted or a string for a single drug plotted.
@@ -605,7 +605,7 @@ class visualization(object):
             for i in range(len(data)):
                 func = self.curve_fitting(data[i], time)
 
-                if self.plot_type == 3:
+                if self.plot_type == 3:  #Plots either dot, line or column based on self.plot_type
                     plt.bar(time-0.4+i*offset, self.final_function(data[i], func, time), width = offset, label = drug_list[i])
                 elif self.plot_type == 2:
                     plt.plot(time, self.final_function(data[i], func, time), label = drug_list[i])
@@ -617,7 +617,7 @@ class visualization(object):
         else:
             func = self.curve_fitting(data, time = time)
 
-            if self.plot_type == 3:
+            if self.plot_type == 3:  #Plots either dot, line or column based on self.plot_type
                 plt.bar(time, self.final_function(data, func, time), label = drug_list)
             elif self.plot_type == 2:
                 plt.plot(time, self.final_function(data, func, time), label = drug_list)
@@ -632,10 +632,13 @@ class visualization(object):
         if save_fig == False:
             pass
         else:
+            if not os.path.exists('Figures'):  #Save the plotes in a sub folder with name Figures
+                os.makedirs('Figures')
             try:
-                plt.savefig(str(save_fig))
+                plt.savefig('Figures\\' + str(save_fig))  #Actually saving the plots.
             except:
-                plt.savefig(str(save_fig) + '.png')
+                plt.savefig('Figures\\' + str(save_fig) + '.png')
+            os.chdir(path)
         plt.show()
 
         return None
@@ -702,14 +705,14 @@ class visualization(object):
             x.append(self.final_function(data_drugs[i], func, time)/func_value)
             explosion.append(0.05)
 
-        if self.med_type_index == 'Not given':
+        if self.med_type_index == 'Not given':  #Checks if there is a file with the same name as the folder to use as 100% of the cake diagram
             pass
         else:
             explosion.append(0.05)
             x.append(1-np.sum(np.array(x)))
             drug_list.append('Resterende '+ self.folder_name)
 
-        if x[-1] < 0:
+        if x[-1] < 0:  #If the sum of the data is greater than the data from the file with the same name as the folder remove it.
             del x[-1]
             del explosion[-1]
             del drug_list[-1]
@@ -746,7 +749,7 @@ class visualization(object):
         save_fig     -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
         """
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end)  #The correct indexes in self.age_indexes based on the age arguments
 
         data = self.drug_array(age_indexes, region, gender)
 
@@ -784,7 +787,7 @@ class visualization(object):
         save_fig     -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
         """
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end)  #The correct indexes in self.age_indexes based on the age arguments
         data = self.drug_array(age_indexes, region, gender)
         if type(drug) == type(['yolo']):
             pass
@@ -836,9 +839,10 @@ class visualization(object):
             print('You have to specify both the \'teller\' and \'nevner\' variables')
             sys.exit()
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end) #The correct indexes in self.age_indexes based on the age arguments
         data = self.drug_array(age_indexes, region, gender)
-        if type(teller) == type(['yolo']):
+
+        if type(teller) == type(['yolo']):  #Checks whether the teller or nevner is of the type list, if not make them so
             pass
         else:
             teller = [teller]
@@ -890,7 +894,7 @@ class visualization(object):
         save_fig     -> Option to save the figure. If False the figure WON'T be saved. To save enter a string with .png or .jpg endings
         """
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end) #The correct indexes in self.age_indexes based on the age arguments
 
         data = self.drug_array(age_indexes, region, gender)
 
@@ -921,8 +925,8 @@ class visualization(object):
             print('The \'drug\' argument has to be a string')
             sys.exit()
 
-        age_indexes = self.age_parameters(0, 100)
-        med_index = self.drugs.index(drug)
+        age_indexes = self.age_parameters(0, 100)  #Including all indexes for all ages
+        med_index = self.drugs.index(drug)  #The index of the specified drug
         med_dict = self.data[med_index]
         data = np.zeros((len(self.age_group_keys) ,len(self.year_keys)))
         x_axis = np.linspace(1, len(self.age_group_keys), len(self.age_group_keys))
@@ -945,9 +949,9 @@ class visualization(object):
                     data_tot[index][i] = med_dict2[gender][year_index][k][region]
                 index += 1
 
-            f = interpolate.interp1d(self.year_keys, data/data_tot, fill_value='extrapolate')
+            f = interpolate.interp1d(self.year_keys, data/data_tot, fill_value='extrapolate')  #Interpolating the data to make a smooth animation
         else:
-            f = interpolate.interp1d(self.year_keys, data, fill_value='extrapolate')
+            f = interpolate.interp1d(self.year_keys, data, fill_value='extrapolate')  #Interpolating the data to make a smooth animation
 
         x = np.linspace(0, len(self.age_group_keys)-1, len(self.age_group_keys))
 
@@ -1026,12 +1030,12 @@ class visualization(object):
             prevalens /= 100
         #Source SSB https://www.ssb.no/statbank/table/07459/
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end)  #The correct indexes in self.age_indexes based on the age arguments
         data = self.drug_array(age_indexes, region, gender)
 
-        if region == 'Hele landet':
+        if region == 'Hele landet':  #The data from SSB do not have the variable Hele landet, this it's necessarry to sum up everything.
             if 'Hele landet' in self.p_places:
-                p_data = self.population_array(age_indexes, region, gender)
+                p_data = self.population_array(age_indexes, region, gender)  #If the data is from reseptregisteret do nothing.
             else:  #If the data is from SSB and not having the variable Hele landet
                 p_data = self.population_array(age_indexes, self.p_places[0], gender)
                 for k in range(1,len(self.p_places)):
@@ -1082,7 +1086,7 @@ class visualization(object):
             drug = [drug]
         #Source SSB https://www.ssb.no/statbank/table/07459/
 
-        age_indexes = self.age_parameters(age_start, age_end)
+        age_indexes = self.age_parameters(age_start, age_end)  #The correct indexes in self.age_indexes based on the age arguments
         data = self.drug_array(age_indexes, region, gender)
 
         if region == 'Hele landet':
@@ -1124,7 +1128,7 @@ class visualization(object):
     def fodsler(self, births_sykdom = 98, drug = 'Valproat', prevalens = 0.7, save_fig = False, label = False, ratio = False):
         births = np.array([2, 12, 36, 106, 239, 403, 719, 1007, 1451, 1791, 2452, 2981, 3692, 4169, 4426, 4585, 4503, 4090, 3804, 3210, 2656, 2299, 1890, 1445, 1105, 748, 510, 306, 211, 107, 73, 40, 18, 10, 6])  #The birthnumbers from SSB for 2018 age 15-49, change these to update.
         # https://www.ssb.no/statbank/table/06990/
-        age_indexes = self.age_parameters(15, 49)
+        age_indexes = self.age_parameters(15, 49)  #The correct indexes in self.age_indexes for fertile women.
         sums_birth = np.zeros(len(age_indexes))
         p_data = np.zeros(len(age_indexes))
 
@@ -1136,26 +1140,26 @@ class visualization(object):
         med_users = np.zeros((len(self.year_keys), len(age_indexes)))
 
         for i in range(len(sums_birth)):
-            sums_birth[i] += np.sum(births[:i*5 + 5]) - np.sum(births[:i*5])
+            sums_birth[i] += np.sum(births[:i*5 + 5]) - np.sum(births[:i*5])  #Summing up to match the age groups in self.age_keys
             p_data[i] = self.population_array([age_indexes[i]], 'Hele landet', 'Kvinne')[self.year_keys.index(2018)]
             med_users[:, i] = self.drug_array([age_indexes[i]], 'Hele landet', 'Kvinne')[self.drugs.index(drug)]
 
         age_indexes2 = self.age_parameters(0, 100)
-        prob_birth = np.copy(sums_birth/p_data)
+        prob_birth = np.copy(sums_birth/p_data)  #The probability of giving birth for a specific age group 15-19, 20-24 etc.
         drugs_tot = self.drug_array(age_indexes2, 'Hele landet', 'Kvinne')[self.drugs.index(drug)]
 
-        ratio2 = births_sykdom/(np.sum(births)*prevalens)
+        ratio2 = births_sykdom/(np.sum(births)*prevalens)  #A ratio number to correct for the fact that less women using Antiepileptika is having children.
         births = np.sum(prob_birth*med_users, axis = 1)*ratio2
 
         if ratio == True:
             births_val_ratio = births/drugs_tot
             if label == False:
-                self.part1_plotting(births_val_ratio, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Forholdet: fødlser blant valproat brukere/antall valproat brukere')
+                self.part1_plotting(births_val_ratio, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Forholdet: fødlser blant ' + drug + ' brukere/antall ' + drug + ' brukere')
             else:
                 self.part1_plotting(births_val_ratio, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = label)
         else:
             if label == False:
-                self.part1_plotting(births, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Antall fødsler blant valproat brukere')
+                self.part1_plotting(births, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = 'Antall fødsler blant ' + drug + ' brukere')
             else:
                 self.part1_plotting(births, 2004, 2018, drug, age_indexes, 'Kvinne', 'Hele landet', save_fig = save_fig, label = label)
 
@@ -1163,10 +1167,11 @@ class visualization(object):
 
 if __name__ == "__main__":
     test = visualization('Antiepileptika', 'dot')
+    #print(path)
     #test2 = visualization('R')
     #test3 = visualization('R1')
-    #test.medisiner_og_befolkning2(prevalens = 2.5, ratio = True, drug = ['Valproat', 'Lamotrigin'])
-    test.fodsler(drug = 'Antiepileptika', ratio = True)
+    test.medisiner_og_befolkning2(prevalens = 2.5, ratio = True, drug = ['Valproat', 'Lamotrigin'], period_end = 2020)
+    #test.fodsler(drug = 'Antiepileptika', ratio = True, save_fig = 'woopwoop.jpg')
 
 
 
